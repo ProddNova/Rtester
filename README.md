@@ -1,7 +1,8 @@
 # 🏁 CacciAuto
 
 Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** gli annunci di
-**AutoScout24, Subito, AutoSuperMarket, Automobile.it e Trovit**, con foto, prezzo, km, anno, CV e città,
+**AutoScout24, Subito, AutoSuperMarket, Automobile.it e Trovit** in Italia, più **Kleinanzeigen** (Germania),
+**Marktplaats** (Olanda) e AutoScout24 Europa per l'estero. Foto, prezzo, km, anno, CV e città,
 **senza doppioni**. Pensato per il telefono, va bene anche da PC.
 
 ## Cosa fa
@@ -10,16 +11,18 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
   - **Appassionati e affari**: auto da appassionati (Evo, MX-5, Delta Integrale, Saab Aero…, con una curiosità
     su ognuna) e modelli diffusi con prezzo sotto il mercato secondo AutoScout24. Ordine casuale a ogni apertura
     (pulsante "Mescola"), mai due annunci di fila dello stesso modello;
-  - **Più recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit.
+  - **Più recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit (e Kleinanzeigen, Marktplaats).
 
-  Due filtri solo per il feed: **budget massimo** e **km massimi**.
+  Filtri solo per il feed: **budget massimo**, **km massimi** e **dove** (Italia + estero oppure solo Italia).
+  Nel feed vanno solo annunci con foto.
 - **Ricerca rapida**: marca e modello si scrivono con la tastiera e la lista si filtra mentre scrivi
   ("mercedes" → Mercedes-Benz, "classe c" → Classe C); poi prezzo massimo e anno minimo; tutto il resto è in "Altri filtri"
   (versione/parole chiave, prezzo da, anno fino a, km, alimentazione, cambio, carrozzeria, privati/concessionari,
-  potenza, regione, estero). Più scorciatoie al volo: "Sotto 5.000 €", "Youngtimer", "Cabrio", "200+ CV"…
+  potenza, regione, **dove cercare**: Italia + estero, solo Italia, solo estero). Più scorciatoie al volo: "Sotto 5.000 €", "Youngtimer", "Cabrio", "200+ CV"…
 - **Tutte le marche e i modelli**: 301 marche e oltre 5.000 modelli, presi da AutoScout24
   (`node scripts/update-models.js` per aggiornarli).
-- **Lista unica** da 5 siti, con scorrimento infinito. Ordina per: misti, affari prima, prezzo ↑/↓, km, anno, più recenti.
+- **Lista unica** da 7 siti, con scorrimento infinito. Ordina per: misti, affari prima, prezzo ↑/↓, km, anno, più recenti.
+  Gli annunci senza foto finiscono in fondo.
 - **Affare o caro?** Ogni annuncio ha un'etichetta (Affare, Buon prezzo, Nella media, Caro, Molto basso…).
   Per AutoScout24 è la loro valutazione di mercato; per gli altri è una stima calcolata sugli annunci della ricerca
   (prezzo in base ad anno e km).
@@ -28,6 +31,9 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
   (con telefono quando il sito lo mostra), da quanto è online, valutazione di mercato. Poi, se vuoi,
   "Apri su <sito>".
 - **Condividi** un annuncio (WhatsApp ecc.): il link apre l'annuncio dentro CacciAuto, con foto e scheda.
+- **Estero**: normalmente si cerca in Italia **e** all'estero (Germania, Olanda, Austria, Francia, Belgio, Spagna,
+  Lussemburgo tramite AutoScout24 Europa, Kleinanzeigen e Marktplaats). La città mostra il paese (es. "Neuss, DE").
+  Se scegli una regione italiana si cerca solo in Italia.
 - **Traduzione**: gli annunci in tedesco, francese, inglese, spagnolo o olandese hanno il pulsante
   "Traduci in italiano" (servizio gratuito MyMemory, senza account; se finisce il limite giornaliero
   si apre Google Traduttore).
@@ -64,12 +70,18 @@ Ore di accensione: circa 19 al giorno, quindi circa 590 al mese, dentro le 750 g
 | AutoSuperMarket | ✅ | ✅ foto, descrizione, scheda |
 | Automobile.it | ✅ (serve la marca; prezzo/km/anno li filtra CacciAuto) | ✅ completa |
 | Trovit (aggregatore) | ✅ (non filtra per zona) | ✅ descrizione e scheda |
+| Kleinanzeigen 🇩🇪 | ✅ marca, prezzo, anno, km, alimentazione, cambio, carrozzeria, CV (il modello si cerca a parole) | ✅ foto, scheda, descrizione, dotazioni, venditore |
+| Marktplaats 🇳🇱 | ✅ (marca e modello nell'URL, il resto lo filtra CacciAuto) | ✅ foto, scheda completa, descrizione |
 | ilParking, Facebook Marketplace | link "Cerca anche su" già filtrato | — |
 
 ilParking (e i siti gemelli theparking.eu) risponde a CacciAuto con la protezione anti-bot di Cloudflare,
 cioè dice esplicitamente "niente programmi automatici"; Marketplace richiede il login. CacciAuto non prova
-ad aggirare questi blocchi (né direttamente né passando da siti gemelli dello stesso gruppo): li apre come link
-già filtrati.
+ad aggirare questi blocchi (né direttamente né passando da siti gemelli dello stesso gruppo, come leparking.fr):
+li apre come link già filtrati. Per avere comunque tante auto, anche dall'estero, ci sono Kleinanzeigen e Marktplaats.
+Siti provati e scartati perché bloccano i programmi: mobile.de, LaCentrale, Leboncoin, willhaben, AutoScout24.ch, AutoUncle.
+
+Kleinanzeigen e Marktplaats: si leggono solo le pagine che i loro `robots.txt` permettono (niente ordinamento
+via URL su Kleinanzeigen, niente API interne di Marktplaats).
 
 ## Come funziona
 
@@ -78,7 +90,8 @@ Un sito che gira solo nel browser **non può** leggere le pagine di altri siti: 
 
 1. il telefono chiede `/api/search?s={filtri}` al nostro server;
 2. il server scarica **una pagina di risultati per sito**, già filtrata tramite l'URL di ricerca del sito;
-3. legge gli annunci (JSON dentro la pagina per AutoScout24, Subito e Automobile.it; HTML per AutoSuperMarket e Trovit);
+3. legge gli annunci (JSON dentro la pagina per AutoScout24, Subito, Automobile.it e Marktplaats; HTML per AutoSuperMarket,
+   Trovit e Kleinanzeigen);
 4. applica i filtri che il sito non sa fare, unisce i doppioni, risponde con la lista unica.
 
 Le pagine restano in cache 10 minuti, due richieste uguali nello stesso momento fanno un solo download e ci sono

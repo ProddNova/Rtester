@@ -5,9 +5,12 @@
 const { getPage, BlockedError } = require('./fetch');
 const SITES = require('../public/js/sites.js');
 const DEDUP = require('../public/js/dedup.js');
-const SOURCES = [require('./sources/autoscout'), require('./sources/subito'), require('./sources/autosupermarket'), require('./sources/automobile'), require('./sources/trovit')];
+const SOURCES = [require('./sources/autoscout'), require('./sources/subito'), require('./sources/autosupermarket'), require('./sources/automobile'), require('./sources/trovit'),
+  require('./sources/kleinanzeigen'), require('./sources/marktplaats')];
+// Siti esteri (le loro auto compaiono solo se la zona è "Italia + estero" o "Solo estero")
+const FOREIGN = new Set(['kleinanzeigen', 'marktplaats']);
 
-const FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'seller', 'region', 'europe', 'sort'];
+const FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'seller', 'region', 'europe', 'area', 'sort'];
 
 // Tiene solo i campi noti, con lunghezze ragionevoli.
 function cleanSearch(raw) {
@@ -18,6 +21,11 @@ function cleanSearch(raw) {
     else s[k] = v === undefined || v === null ? '' : String(v).slice(0, 60);
   });
   if (!s.sort) s.sort = 'rilevanza';
+  // zona: '' = solo Italia, 'eu' = Italia + estero, 'estero' = solo estero (il vecchio "europe" vale 'eu')
+  if (!['eu', 'estero'].includes(s.area)) s.area = s.europe ? 'eu' : '';
+  // una regione italiana ha senso solo in Italia
+  if (s.region) s.area = '';
+  s.europe = s.area !== '';
   return s;
 }
 
@@ -49,6 +57,11 @@ function matches(it, s, siteId, strictModel) {
   return true;
 }
 
+// Siti da interrogare per questa zona
+function sourcesFor(s) {
+  return SOURCES.filter((src) => (FOREIGN.has(src.id) ? s.area !== '' : s.area !== 'estero' || src.id === 'autoscout'));
+}
+
 async function fromSource(src, s, page) {
   const url = src.url(s, page);
   const out = { id: src.id, name: src.name, url, ok: true, count: 0, total: null, pages: 0, error: '' };
@@ -64,15 +77,16 @@ async function fromSource(src, s, page) {
   try {
     // alcuni siti hanno un link "preciso" e uno di riserva (se il primo non esiste: 404 = pagina vuota)
     const candidates = (src.urls ? src.urls(s, page) : [url]).map((c) => (typeof c === 'string' ? { u: c } : c));
-    let html = '';
+    let r = { items: [], total: 0, pages: 0 };
     let strict = false;
     for (const c of candidates) {
-      html = await getPage(c.u);
+      const html = await getPage(c.u);
       out.url = c.u;
       strict = !!c.strict;
-      if (html) break;
+      r = src.parse(html);
+      // pagina che non esiste (404) o senza annunci: si prova il link di riserva
+      if (r.items.length) break;
     }
-    const r = src.parse(html);
     const items = r.items.filter((it) => matches(it, s, src.id, strict));
     out.count = items.length; out.total = r.total; out.pages = r.pages;
     return { out, items };
@@ -113,7 +127,7 @@ function sortItems(items, sort) {
 async function search(rawSearch, page) {
   const s = cleanSearch(rawSearch);
   page = Math.max(1, Math.min(50, parseInt(page, 10) || 1));
-  const res = await Promise.all(SOURCES.map((src) => fromSource(src, s, page)));
+  const res = await Promise.all(sourcesFor(s).map((src) => fromSource(src, s, page)));
   res.forEach((r) => r.items.forEach(tidy));
   const merged = mergeDuplicates(interleave(res.map((r) => r.items)));
   return {
@@ -126,4 +140,4 @@ async function search(rawSearch, page) {
   };
 }
 
-module.exports = { search, matches, mergeDuplicates, cleanSearch, sortItems };
+module.exports = { search, matches, mergeDuplicates, cleanSearch, sortItems, sourcesFor };

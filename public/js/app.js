@@ -7,10 +7,10 @@
   var D = window.CA_DATA, S = window.CA_SITES, X = window.CA_DEDUP;
   var $ = function (id) { return document.getElementById(id); };
 
-  var SITE_NAMES = { autoscout: 'AutoScout24', autosupermarket: 'AutoSuperMarket', automobile: 'Automobile.it', trovit: 'Trovit', subito: 'Subito', facebook: 'Marketplace', ilparking: 'ilParking' };
-  var SITE_SHORT = { autoscout: 'AS24', autosupermarket: 'ASM', automobile: 'AM.it', trovit: 'Trovit', subito: 'Subito', facebook: 'FB', ilparking: 'ilParking' };
+  var SITE_NAMES = { autoscout: 'AutoScout24', autosupermarket: 'AutoSuperMarket', automobile: 'Automobile.it', trovit: 'Trovit', subito: 'Subito', kleinanzeigen: 'Kleinanzeigen (DE)', marktplaats: 'Marktplaats (NL)', facebook: 'Marketplace', ilparking: 'ilParking' };
+  var SITE_SHORT = { autoscout: 'AS24', autosupermarket: 'ASM', automobile: 'AM.it', trovit: 'Trovit', subito: 'Subito', kleinanzeigen: 'KA.de', marktplaats: 'MP.nl', facebook: 'FB', ilparking: 'ilParking' };
   var DEAL = ['Molto basso', 'Affare', 'Buon prezzo', 'Nella media', 'Un po\' caro', 'Caro', 'Molto caro'];
-  var EMPTY = { make: '', model: '', kw: '', pmin: '', pmax: '', ymin: '', ymax: '', kmmin: '', kmmax: '', fuel: '', gear: '', body: '', seller: '', cvmin: '', cvmax: '', region: '', europe: false, sort: 'rilevanza' };
+  var EMPTY = { make: '', model: '', kw: '', pmin: '', pmax: '', ymin: '', ymax: '', kmmin: '', kmmax: '', fuel: '', gear: '', body: '', seller: '', cvmin: '', cvmax: '', region: '', area: 'eu', sort: 'rilevanza' };
   var FORM_FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region'];
 
   // ---------------------------------------------------------------- memoria locale (solo comodità)
@@ -143,7 +143,7 @@
   function updateMoreCount() {
     var f = $('searchForm'), n = 0;
     ADV_FIELDS.forEach(function (k) { if (String(f.elements[k].value || '').trim()) n++; });
-    if (f.elements.europe.checked) n++;
+    if (f.elements.area.value && f.elements.area.value !== 'eu') n++;
     $('moreCount').hidden = !n;
     $('moreCount').textContent = n;
   }
@@ -291,7 +291,7 @@
     commitCombos();
     var f = $('searchForm'), s = Object.assign({}, EMPTY, { sort: state.search.sort || 'rilevanza' });
     FORM_FIELDS.forEach(function (k) { s[k] = String(f.elements[k].value || '').trim(); });
-    s.europe = f.elements.europe.checked;
+    s.area = f.elements.area.value || 'eu';
     // "da" più alto di "fino a": li scambiamo invece di dare zero risultati
     [['pmin', 'pmax'], ['ymin', 'ymax'], ['kmmin', 'kmmax'], ['cvmin', 'cvmax']].forEach(function (p) {
       if (int(s[p[0]]) && int(s[p[1]]) && int(s[p[0]]) > int(s[p[1]])) { var t = s[p[0]]; s[p[0]] = s[p[1]]; s[p[1]] = t; }
@@ -304,7 +304,7 @@
     FORM_FIELDS.forEach(function (k) { if (k !== 'model' && k !== 'make') f.elements[k].value = s[k] || ''; });
     makeCombo.set(makeInfo(s.make) ? s.make : '');
     fillModels(s.make, s.model);
-    f.elements.europe.checked = !!s.europe;
+    f.elements.area.value = ['it', 'estero'].indexOf(s.area) !== -1 ? s.area : 'eu';
     updateMoreCount();
   }
 
@@ -321,7 +321,8 @@
     if (s.seller) p.push(s.seller === 'privato' ? 'Privati' : 'Concessionari');
     if (int(s.cvmin) || int(s.cvmax)) p.push((s.cvmin || '0') + '–' + (s.cvmax || '∞') + ' CV');
     if (s.region) p.push(labelOf(D.REGIONS.map(function (r) { return { k: r.k, n: r.n }; }), s.region));
-    if (s.europe) p.push('+ estero');
+    if (s.area === 'it' || (s.region && s.area !== 'estero')) p.push('solo Italia');
+    if (s.area === 'estero') p.push('solo estero');
     return p.join(' · ');
   }
   function compact(s) {
@@ -505,6 +506,8 @@
     else if (s === 'km') list.sort(function (a, b) { return (a.km === null ? BIG : a.km) - (b.km === null ? BIG : b.km); });
     else if (s === 'anno') list.sort(function (a, b) { return (b.year || 0) - (a.year || 0); });
     else if (s === 'affari') list.sort(function (a, b) { return devOf(a) - devOf(b); });
+    // nell'ordine normale gli annunci senza foto vanno in fondo
+    if (s === 'rilevanza' || s === 'recenti') list = list.filter(function (x) { return x.image; }).concat(list.filter(function (x) { return !x.image; }));
     return list;
   }
 
@@ -609,7 +612,7 @@
     var href = '#/annuncio?u=' + encodeURIComponent(it.url);
     return h('a', { class: 'ad' + (state.visited[it.key] ? ' visited' : ''), href: href }, [
       h('div', { class: 'ph' }, [
-        it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.remove(); } } }) : ic('car', 'noimg'),
+        it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.replaceWith(ic('car', 'noimg')); } } }) : ic('car', 'noimg'),
         it.isNew ? h('span', { class: 'new', text: 'NUOVO' }) : null,
         it.photos > 1 ? h('span', { class: 'n' }, [ic('camera'), String(it.photos)]) : null
       ]),
@@ -864,7 +867,7 @@
 
   // ---------------------------------------------------------------- feed della home
   // opzioni del feed (ricordate sul telefono) e ordine casuale nuovo a ogni apertura
-  var feedOpts = Object.assign({ mode: 'mix', pmax: '', kmmax: '' }, lget('feed', {}));
+  var feedOpts = Object.assign({ mode: 'mix', pmax: '', kmmax: '', area: 'eu' }, lget('feed', {}));
   var feedSeed = 1 + Math.floor(Math.random() * 1e6);
   var feed = { items: [], page: 0, loading: false, done: false, req: 0 };
   function loadFeed(reset) {
@@ -880,7 +883,7 @@
     more.innerHTML = '';
     for (var i = 0; i < (feed.page ? 1 : 4); i++) (feed.page ? more : $('feed')).appendChild(h('div', { class: 'skel tall' }));
     var q = 'api/feed?page=' + feed.page + '&mode=' + feedOpts.mode + '&seed=' + feedSeed +
-      (feedOpts.pmax ? '&pmax=' + feedOpts.pmax : '') + (feedOpts.kmmax ? '&kmmax=' + feedOpts.kmmax : '');
+      (feedOpts.pmax ? '&pmax=' + feedOpts.pmax : '') + (feedOpts.kmmax ? '&kmmax=' + feedOpts.kmmax : '') + '&area=' + (feedOpts.area || 'eu');
     api(q).then(function (j) {
       if (myReq !== feed.req) return; // nel frattempo hai cambiato filtri
       feed.loading = false;
@@ -915,7 +918,7 @@
       : it2('gem', it.label || 'Da appassionati');
     return h('a', { class: 'fcard', href: '#/annuncio?u=' + encodeURIComponent(it.url) }, [
       h('div', { class: 'ph' }, [
-        it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.remove(); } } }) : ic('car', 'noimg'),
+        it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.replaceWith(ic('car', 'noimg')); } } }) : ic('car', 'noimg'),
         h('span', { class: 'why ' + (it.reason || '') }, why),
         h('span', { class: 'pr-over', text: eur(it.price) })
       ]),
@@ -934,6 +937,7 @@
     fillSelect($('feedKm'), KMS.map(function (k) { return { k: String(k), n: dots(k) + ' km' }; }));
     $('feedPmax').value = feedOpts.pmax || '';
     $('feedKm').value = feedOpts.kmmax || '';
+    $('feedArea').value = feedOpts.area === 'it' ? 'it' : 'eu';
     var markMode = function () {
       Array.prototype.forEach.call($('feedMode').children, function (b) { b.classList.toggle('on', b.getAttribute('data-mode') === feedOpts.mode); });
       $('btnFeedRefresh').hidden = feedOpts.mode !== 'mix';
@@ -946,7 +950,7 @@
         lset('feed', feedOpts); markMode(); loadFeed(true);
       });
     });
-    [['feedPmax', 'pmax'], ['feedKm', 'kmmax']].forEach(function (p) {
+    [['feedPmax', 'pmax'], ['feedKm', 'kmmax'], ['feedArea', 'area']].forEach(function (p) {
       $(p[0]).addEventListener('change', function () { feedOpts[p[1]] = $(p[0]).value; lset('feed', feedOpts); loadFeed(true); });
     });
   }
@@ -1067,7 +1071,7 @@
     tags.push(h('span', { text: 'salvato ' + ago(x.savedAt) }));
     if (x.city) tags.push(h('span', { class: 'city', text: x.city }));
     var card = h('a', { class: 'ad saved', href: '#/annuncio?u=' + encodeURIComponent(x.url) }, [
-      h('div', { class: 'ph' }, [x.image ? h('img', { src: x.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', on: { error: function () { this.remove(); } } }) : ic('car', 'noimg')]),
+      h('div', { class: 'ph' }, [x.image ? h('img', { src: x.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', on: { error: function () { this.replaceWith(ic('car', 'noimg')); } } }) : ic('car', 'noimg')]),
       h('div', { class: 'bd' }, [
         h('div', { class: 'tt' }, [x.title || x.url, x.version ? h('small', { text: ' · ' + x.version }) : null]),
         h('div', { class: 'prow' }, [
@@ -1108,7 +1112,7 @@
   var checking = false;
   function checkPrices() {
     if (checking) return;
-    var list = state.saved.filter(function (x) { return ['autoscout', 'subito', 'autosupermarket', 'automobile', 'trovit'].indexOf(x.site) !== -1; }).slice(0, 60);
+    var list = state.saved.filter(function (x) { return ['autoscout', 'subito', 'autosupermarket', 'automobile', 'trovit', 'kleinanzeigen', 'marktplaats'].indexOf(x.site) !== -1; }).slice(0, 60);
     if (!list.length) { toast('Niente da controllare'); return; }
     checking = true;
     var btn = $('btnCheck'), i = 0;

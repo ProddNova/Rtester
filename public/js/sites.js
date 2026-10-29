@@ -124,14 +124,15 @@
           var asm = modelSlug('autoscout', s.make, s.model);
           if (asm) path += '/' + asm;
         }
-        var r = !s.europe && region(s.region);
+        var abroad = !s.region && (s.europe || s.area === 'eu' || s.area === 'estero');
+        var r = !abroad && region(s.region);
         var sort = SORT[s.sort] || ['standard', '0'];
         var cvToKw = function (cv) { var n = num(cv); return n ? Math.round(n / 1.36) : ''; };
         return path + qs({
           atype: 'C',
           mmmv: mmmv,
           version: s.kw || '',
-          cy: s.europe ? 'D,A,B,E,F,I,L,NL' : 'I',
+          cy: abroad && s.area === 'estero' ? 'D,A,B,E,F,L,NL' : abroad ? 'D,A,B,E,F,I,L,NL' : 'I',
           damaged_listing: 'exclude',
           ustate: 'N,U',
           pricefrom: num(s.pmin), priceto: num(s.pmax),
@@ -249,9 +250,10 @@
     if (s.gear) a.push('cambio');
     if (s.body) a.push('carrozzeria');
     if (num(s.cvmin) || num(s.cvmax)) a.push('cv');
-    if (s.region && !s.europe) a.push('zona');
+    var abroad = !s.region && (s.europe || s.area === 'eu' || s.area === 'estero');
+    if (s.region && !abroad) a.push('zona');
     if (s.sort && s.sort !== 'rilevanza') a.push('ordine');
-    if (s.europe) a.push('europa');
+    if (abroad) a.push('europa');
     return a;
   }
 

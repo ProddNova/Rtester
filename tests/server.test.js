@@ -173,3 +173,127 @@ test('Trovit: foto anche quando src non è il primo attributo, e città', () => 
   assert.strictEqual(it.image, 'https://img-it-2.trovit.com/ZZ1/ZZ1.1_11.jpg');
   assert.strictEqual(it.city, 'Udine');
 });
+
+// ---------------- siti esteri ----------------
+const KA = require('../server/sources/kleinanzeigen');
+const MP = require('../server/sources/marktplaats');
+const { sourcesFor } = require('../server/search');
+const { sourceFor } = require('../server/detail');
+
+test('Kleinanzeigen: URL con filtri nel percorso', () => {
+  assert.strictEqual(KA.url({ make: 'Mercedes-Benz', model: 'Classe C', pmax: '8000', ymin: '2005', fuel: 'diesel' }, 2),
+    'https://www.kleinanzeigen.de/s-autos/seite:2/preis::8000/c-klasse/k0c216+autos.marke_s:mercedes_benz+autos.ez_i:2005%2C+autos.fuel_s:diesel');
+  assert.strictEqual(KA.url({ make: 'BMW', model: 'Serie 3', kmmax: '150000', gear: 'automatico' }, 1),
+    'https://www.kleinanzeigen.de/s-autos/3er/k0c216+autos.marke_s:bmw+autos.km_i:%2C150000+autos.shift_s:automatik');
+  // marca che Kleinanzeigen non ha nel filtro: si cerca a parole
+  assert.strictEqual(KA.url({ make: 'Alpine', model: 'A110' }, 1), 'https://www.kleinanzeigen.de/s-autos/alpine-a110/k0c216');
+  assert.strictEqual(KA.url({ make: 'auto', pmax: '5000' }, 1), 'https://www.kleinanzeigen.de/s-autos/preis::5000/c216');
+});
+
+test('Kleinanzeigen: lettura lista (foto, km, anno, città) e scarta chi compra', () => {
+  const card = (id, title, price, tags, extra) => `<li data-href="/s-anzeige/x-${id}/${id}-216-2110" class="j-adlistitem adlist--item" data-adid="${id}">
+    <div class="adlist--item--imagebox"><img fetchpriority="high" loading="eager" src="https://img.kleinanzeigen.de/api/v1/prod-ads/images/60/abc?rule&#61;$_35.AUTO" alt="">
+    <div class="has-image-count"> 12 </div></div>
+    <div class="adlist--item--info"><div class="adlist--item--info--location"> Neuss </div><div class="adlist--item--info--date"> Heute, 13:58 </div></div>
+    <strong class="adlist--item--boldtitle">${extra || `<a href="/s-anzeige/x-${id}/${id}-216-2110">${title}</a>`}</strong>
+    <div class="long-description">Saab 9-3 Cabrio 145 PS Diesel</div>
+    <div class="adlist--item--price">${price}</div>
+    <div class="adlist--item--attributes">${tags.map((t) => `<span class="simpletag">${t}</span>`).join('')}</div></li>`;
+  const html = '<h1>499 Ergebnisse</h1><ul>' +
+    card('3499850245', 'Saab 9-3 Cabrio Vector', '9.200 € VB', ['107.354 km', 'EZ 05/2004']) +
+    card('3499850246', 'Kaufe Saab 9-3 alle Modelle', '1 €', []) +
+    card('3499850247', '', '1.500 €', ['387.000 km', 'EZ 10/2002'], '<span class="page-not-linked" data-url="/s-anzeige/pkw/3499850247-216-1">PKW saab 9-3</span>') +
+    '</ul>';
+  const r = KA.parse(html);
+  assert.strictEqual(r.total, 499);
+  assert.strictEqual(r.items.length, 2);
+  const it = r.items[0];
+  assert.deepStrictEqual([it.key, it.price, it.negotiable, it.km, it.year, it.cv, it.fuel, it.city, it.photos],
+    ['kleinanzeigen:3499850245', 9200, true, 107354, 2004, 145, 'diesel', 'Neuss, DE', 12]);
+  assert.strictEqual(it.image, 'https://img.kleinanzeigen.de/api/v1/prod-ads/images/60/abc?rule=$_35.AUTO');
+  assert.ok(it.url.startsWith('https://www.kleinanzeigen.de/s-anzeige/'));
+  assert.strictEqual(r.items[1].title, 'PKW saab 9-3');
+  assert.ok(Math.abs(KA.when('Gestern, 10:00') - Date.now()) < 2 * 86400000);
+});
+
+test('Kleinanzeigen: pagina annuncio', () => {
+  const html = `<title>Saab 9-3 Cabrio in Nordrhein-Westfalen - Neuss | kleinanzeigen.de</title>
+    <script type="application/ld+json">{"@type":"Product","name":"Saab 9-3 Cabrio","offers":{"price":"9200"}}</script>
+    <script type="application/ld+json">{"@type":"ImageObject","contentUrl":"https://img.kleinanzeigen.de/api/v1/prod-ads/images/60/a?rule&#61;$_59.AUTO"}</script>
+    <script type="application/ld+json">{"@type":"ImageObject","contentUrl":"https://img.kleinanzeigen.de/api/v1/prod-ads/images/61/b?rule&#61;$_59.AUTO"}</script>
+    <h1 class="ad-keydetails--ad-title" id="vip-ad-title"> Saab 9-3 Cabrio </h1>
+    <div class="ad-keydetails--ad-price" id="vip-ad-price"> 9.200 € VB </div>
+    <span>29.10.2026</span>
+    <dl class="definition-list-addetails"><dt>Kilometerstand</dt><dd>107.354 km</dd><dt>Erstzulassung</dt><dd>Mai 2004</dd>
+    <dt>Kraftstoffart</dt><dd>Benzin</dd><dt>Leistung</dt><dd>147 PS</dd><dt>Getriebe</dt><dd>Manuell</dd><dt>Anzahl Türen</dt><dd>2/3</dd></dl>
+    <ul class="checktaglist"><li class="checktag">Klimaanlage</li><li class="checktag">Sitzheizung</li></ul>
+    <p id="viewad-description-text" class="ad-keydetails--ad-description">Sehr gepflegt.<br />TÜV neu</p>
+    <h2 class="userprofile-teaser--title"> Mario </h2><span class="userprofile-teaser--postertype">Privater Nutzer</span>`;
+  const d = KA.detail(html);
+  assert.deepStrictEqual([d.title, d.price, d.negotiable, d.km, d.year, d.fuel, d.gear, d.cv, d.doors], ['Saab 9-3 Cabrio', 9200, true, 107354, 2004, 'benzina', 'manuale', 147, 2]);
+  assert.strictEqual(d.photos.length, 2);
+  assert.strictEqual(d.description, 'Sehr gepflegt.\nTÜV neu');
+  assert.deepStrictEqual(d.equipment, ['Klimaanlage', 'Sitzheizung']);
+  assert.deepStrictEqual([d.seller.name, d.seller.type], ['Mario', 'privato']);
+  assert.ok(d.posted);
+});
+
+test('Marktplaats: URL, lista dal JSON e pagina annuncio', () => {
+  assert.deepStrictEqual(MP.urls({ make: 'Mercedes-Benz', model: 'Classe C' }, 2), [
+    'https://www.marktplaats.nl/l/auto-s/mercedes-benz/q/C-Klasse/p/2/',
+    { u: 'https://www.marktplaats.nl/l/auto-s/q/Mercedes-Benz+C-Klasse/p/2/', strict: true }
+  ]);
+  const html = next({ searchRequestAndResponse: { totalResultCount: 397, maxAllowedPageNumber: 14, listings: [
+    { itemId: 'm2458326230', title: 'Saab 9-3 2.0 T 230 pk', vipUrl: '/v/auto-s/saab/m2458326230-saab-9-3', date: 'Vandaag',
+      priceInfo: { priceCents: 645000, priceType: 'MIN_BID' }, location: { cityName: 'Tilburg', countryName: 'Nederland' },
+      imageUrls: ['//images.marktplaats.com/x?rule=ecg_mp_eps$_82.jpg'],
+      attributes: [{ key: 'constructionYear', value: '2009' }, { key: 'mileage', value: '157205' }, { key: 'fuel', value: 'Benzine' }, { key: 'transmission', value: 'Handgeschakeld' }] },
+    { itemId: 'm1', title: 'Gezocht: Saab 9-3', vipUrl: '/v/auto-s/saab/m1-x', priceInfo: { priceCents: 100 }, location: {} },
+    { itemId: 'm2', title: 'Saab 9-3 bieden', vipUrl: '/v/auto-s/saab/m2-x', priceInfo: { priceCents: 0, priceType: 'FAST_BID' }, location: {} }
+  ] } });
+  const r = MP.parse(html);
+  assert.strictEqual(r.items.length, 1);
+  const it = r.items[0];
+  assert.deepStrictEqual([it.key, it.price, it.km, it.year, it.fuel, it.gear, it.cv, it.city], ['marktplaats:m2458326230', 6450, 157205, 2009, 'benzina', 'manuale', 230, 'Tilburg, NL']);
+  assert.strictEqual(it.image, 'https://images.marktplaats.com/x?rule=ecg_mp_eps$_83.jpg');
+  assert.strictEqual(r.pages, 14);
+
+  const page = '<script>window.__CONFIG__ = ' + JSON.stringify({ listing: {
+    title: 'Saab 9-3 2.0 T', priceInfo: { priceCents: 645000, priceType: 'FIXED' },
+    gallery: { imageUrls: ['//images.marktplaats.com/a?rule=ecg_mp_eps$_#.jpg'] },
+    carAttributes: { groupedWithIcons: [{ attributes: [{ key: 'constructionYear', value: 2009 }, { key: 'mileage', value: '157.205' }, { key: 'powerInHorsePower', value: 230 }, { key: 'fuel', value: 'Benzine' }] }] },
+    seller: { name: 'MSC', sellerType: 'CONSUMER', location: { cityName: 'Tilburg', countryName: 'Nederland' } },
+    stats: { since: '2026-10-26T13:21:58Z' }
+  } }) + ';</script><div class="Description-module-description"><div data-collapsable="description">Mooie auto<br />APK 2027</div></div>';
+  const d = MP.detail(page);
+  assert.deepStrictEqual([d.price, d.km, d.year, d.cv, d.fuel, d.seller.type], [6450, 157205, 2009, 230, 'benzina', 'privato']);
+  assert.deepStrictEqual(d.photos, ['https://images.marktplaats.com/a?rule=ecg_mp_eps$_85.jpg']);
+  assert.strictEqual(d.description, 'Mooie auto\nAPK 2027');
+});
+
+test('zona: Italia, Italia + estero, solo estero', () => {
+  const ids = (raw) => sourcesFor(cleanSearch(raw)).map((s) => s.id);
+  assert.deepStrictEqual(ids({ area: 'it' }), ['autoscout', 'subito', 'autosupermarket', 'automobile', 'trovit']);
+  assert.deepStrictEqual(ids({}), ['autoscout', 'subito', 'autosupermarket', 'automobile', 'trovit']);
+  assert.deepStrictEqual(ids({ area: 'eu' }), ['autoscout', 'subito', 'autosupermarket', 'automobile', 'trovit', 'kleinanzeigen', 'marktplaats']);
+  assert.deepStrictEqual(ids({ europe: true }), ids({ area: 'eu' }));
+  assert.deepStrictEqual(ids({ area: 'estero' }), ['autoscout', 'kleinanzeigen', 'marktplaats']);
+  // con una regione italiana si cerca solo in Italia
+  assert.deepStrictEqual(ids({ area: 'eu', region: 'liguria' }), ids({ area: 'it' }));
+  const SITES = require('../public/js/sites.js');
+  const cy = (raw) => new URL(SITES.SITES.find((x) => x.id === 'autoscout').build(cleanSearch(raw))).searchParams.get('cy');
+  assert.deepStrictEqual([cy({ area: 'it' }), cy({ area: 'eu' }), cy({ area: 'estero' })], ['I', 'D,A,B,E,F,I,L,NL', 'D,A,B,E,F,L,NL']);
+});
+
+test('dettaglio: link di Kleinanzeigen e Marktplaats ammessi, altri no', () => {
+  assert.strictEqual(sourceFor(new URL('https://www.kleinanzeigen.de/s-anzeige/saab-9-3/3499850245-216-2110')), 'kleinanzeigen');
+  assert.strictEqual(sourceFor(new URL('https://www.marktplaats.nl/v/auto-s/saab/m2458326230-saab-9-3-2-0-t')), 'marktplaats');
+  assert.strictEqual(sourceFor(new URL('https://www.kleinanzeigen.de/m-meine-anzeigen.html')), null);
+  assert.strictEqual(sourceFor(new URL('https://www.marktplaats.nl/u/msc/9567988/')), null);
+});
+
+test('alimentazione e cambio in tedesco e olandese', () => {
+  const { normGear } = require('../server/sources/common');
+  assert.deepStrictEqual(['Benzin', 'Benzine', 'Elektro', 'Hybride', 'Erdgas', 'Autogas (LPG)'].map(normFuel), ['benzina', 'benzina', 'elettrica', 'ibrida', 'metano', 'gpl']);
+  assert.deepStrictEqual(['Manuell', 'Handgeschakeld', 'Automaat', 'Automatik'].map(normGear), ['manuale', 'manuale', 'automatico', 'automatico']);
+});

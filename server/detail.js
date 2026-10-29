@@ -9,7 +9,9 @@ const SOURCES = {
   autosupermarket: require('./sources/autosupermarket'),
   automobile: require('./sources/automobile'),
   trovit: require('./sources/trovit'),
-  subito: require('./sources/subito')
+  subito: require('./sources/subito'),
+  kleinanzeigen: require('./sources/kleinanzeigen'),
+  marktplaats: require('./sources/marktplaats')
 };
 
 const UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
@@ -22,6 +24,8 @@ function sourceFor(u) {
   if (h === 'autosupermarket.it' && u.pathname.startsWith('/annunci/')) return 'autosupermarket';
   if (h === 'www.automobile.it' && /^\/[a-z0-9_-]+\/\d{5,}\/?$/i.test(u.pathname)) return 'automobile';
   if (h === 'auto.trovit.it' && u.pathname.startsWith('/listing/')) return 'trovit';
+  if (h === 'www.kleinanzeigen.de' && /^\/s-anzeige\/[a-z0-9-]+\/\d{6,}-\d+-\d+$/i.test(u.pathname)) return 'kleinanzeigen';
+  if (h === 'www.marktplaats.nl' && /^\/v\/auto-s\/[a-z0-9-]+\/m\d{6,}[a-z0-9-]*$/i.test(u.pathname)) return 'marktplaats';
   if ((h === 'www.subito.it' || h === 'm.subito.it') && /^\/auto\/[^/]+-\d{6,}\.htm$/.test(u.pathname)) return 'subito';
   return null;
 }

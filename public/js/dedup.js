@@ -17,7 +17,9 @@
     { id: 'ebay', name: 'eBay', re: /(^|\.)ebay\.[a-z.]+$/ },
     { id: 'mobilede', name: 'mobile.de', re: /(^|\.)mobile\.de$/ },
     { id: 'autouncle', name: 'AutoUncle', re: /(^|\.)autouncle\.[a-z.]+$/ },
-    { id: 'trovit', name: 'Trovit', re: /(^|\.)(trovit\.it|thribee\.com)$/ }
+    { id: 'trovit', name: 'Trovit', re: /(^|\.)(trovit\.it|thribee\.com)$/ },
+    { id: 'kleinanzeigen', name: 'Kleinanzeigen', re: /(^|\.)kleinanzeigen\.de$/ },
+    { id: 'marktplaats', name: 'Marktplaats', re: /(^|\.)marktplaats\.nl$/ }
   ];
 
   function strip(s) {
@@ -52,6 +54,8 @@
     var m;
     if (site === 'subito' && (m = path.match(/(\d{6,})\.htm/))) return 'subito:' + m[1];
     if (site === 'trovit' && (m = path.match(/\/id\.([A-Za-z0-9]+)\//))) return 'trovit:' + m[1];
+    if (site === 'kleinanzeigen' && (m = path.match(/\/s-anzeige\/(?:[^/]+\/)?(\d{6,})-\d+-\d+/))) return 'kleinanzeigen:' + m[1];
+    if (site === 'marktplaats' && (m = path.match(/\/(m\d{6,})(?:-|$)/))) return 'marktplaats:' + m[1];
     if (site === 'autoscout' && (m = path.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i))) return 'autoscout:' + m[1].toLowerCase();
     if (site === 'autosupermarket' && (m = path.match(/-([0-9a-f]{12,})\/?$/i))) return 'autosupermarket:' + m[1].toLowerCase();
     if (site === 'automobile' && (m = path.match(/\/(\d{6,})\/?$/))) return 'automobile:' + m[1];

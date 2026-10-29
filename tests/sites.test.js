@@ -27,10 +27,13 @@ test('AutoScout24: path e parametri verificati', () => {
   assert.strictEqual(q.get('version'), 'aero');
 });
 
-test('AutoScout24: Europa ignora la regione', () => {
-  const q = new URL(url('autoscout', Object.assign({}, full, { europe: true }))).searchParams;
-  assert.ok(q.get('cy').split(',').includes('D'));
-  assert.strictEqual(q.get('zip'), null);
+test('AutoScout24: con una regione italiana si cerca solo in Italia, senza regione anche all\'estero', () => {
+  const q = new URL(url('autoscout', Object.assign({}, full, { area: 'eu' }))).searchParams;
+  assert.strictEqual(q.get('cy'), 'I');
+  assert.ok(q.get('zip'));
+  const q2 = new URL(url('autoscout', Object.assign({}, full, { area: 'eu', region: '' }))).searchParams;
+  assert.ok(q2.get('cy').split(',').includes('D'));
+  assert.strictEqual(q2.get('zip'), null);
 });
 
 test('AutoScout24: slug speciali', () => {

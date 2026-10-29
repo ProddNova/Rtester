@@ -9,6 +9,8 @@ const DEDUP = require('../public/js/dedup.js');
 const AS = require('./sources/autoscout');
 const SUB = require('./sources/subito');
 const TV = require('./sources/trovit');
+const KA = require('./sources/kleinanzeigen');
+const MP = require('./sources/marktplaats');
 
 // make, model (nome come su AutoScout24), kw = parola chiave, y = anni, p = prezzo massimo sensato, f = curiosità
 const RARE = [
@@ -130,6 +132,19 @@ async function fromTrovit(search, page) {
   try { return TV.parse(await getPage(TV.url(search, page || 1))).items; } catch (e) { return []; }
 }
 
+async function fromKA(search, page) {
+  try { return KA.parse(await getPage(KA.url(search, page || 1))).items; } catch (e) { return []; }
+}
+async function fromMP(search, page) {
+  try {
+    for (const c of MP.urls(search, page || 1)) {
+      const items = MP.parse(await getPage(typeof c === 'string' ? c : c.u)).items;
+      if (items.length) return items;
+    }
+  } catch (e) { /* sito non raggiungibile: niente */ }
+  return [];
+}
+
 // Trovit con la ricerca generica "auto" mette anche moto e scooter: teniamo solo marche di auto note
 const MODELS = require('../public/js/models.js');
 const MAKE_NAMES = new Set(MODELS.makes.map((m) => m.n.toLowerCase().split(/[\s-]/)[0]));
@@ -138,32 +153,37 @@ function isCar(it) { return MAKE_NAMES.has(String(it.title || '').toLowerCase().
 
 function kwOk(it, kw) {
   if (!kw) return true;
-  const t = (it.title + ' ' + it.version).toLowerCase().replace(/[^a-z0-9]/g, '');
-  return t.includes(kw.toLowerCase().replace(/[^a-z0-9]/g, ''));
+  const clean = (x) => String(x).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return clean(it.title + ' ' + it.version).includes(clean(kw));
 }
 function n(v) { const x = parseInt(v, 10); return isNaN(x) || x <= 0 ? 0 : x; }
 function within(it, o) {
+  // nel feed si scorrono le foto: gli annunci senza foto non ci vanno
+  if (!it.image) return false;
   if (o.pmax && it.price > o.pmax) return false;
   if (o.kmmax && it.km && it.km > o.kmmax) return false;
   return true;
 }
 
 /*
- * opts: { mode: 'mix' | 'recenti', seed, pmax, kmmax }
+ * opts: { mode: 'mix' | 'recenti', seed, pmax, kmmax, area: 'eu' (Italia + estero, normale) | 'it' (solo Italia) }
  *  - mix: 4 auto da appassionati diverse + 2 modelli diffusi con prezzo sotto il mercato, a ogni pagina
- *  - recenti: gli ultimi annunci pubblicati (AutoScout24, Subito, Trovit)
+ *  - recenti: gli ultimi annunci pubblicati (AutoScout24, Subito, Trovit; con l'estero anche Kleinanzeigen e Marktplaats)
  */
 async function feed(page, opts) {
   opts = opts || {};
   page = Math.max(0, Math.min(200, parseInt(page, 10) || 0));
   const seed = n(opts.seed) || Math.floor(Date.now() / 3600000);
   const o = { pmax: n(opts.pmax), kmmax: n(opts.kmmax) };
+  const abroad = opts.area !== 'it';
   const rand = rng(seed * 31 + page);
 
   if (opts.mode === 'recenti') {
     const s = { pmax: o.pmax ? String(o.pmax) : '', kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'recenti' };
-    const lists = await Promise.all([fromAS(s, page + 1), fromSubito(s, page + 1),
-      fromTrovit(Object.assign({ make: 'auto' }, s), page + 1).then((l) => l.filter(isCar))]);
+    const jobs = [fromAS(s, page + 1), fromSubito(s, page + 1),
+      fromTrovit(Object.assign({ make: 'auto' }, s), page + 1).then((l) => l.filter(isCar))];
+    if (abroad) jobs.push(fromKA(s, page + 1), fromMP(s, page + 1));
+    const lists = await Promise.all(jobs);
     const items = [];
     const max = Math.max(0, ...lists.map((l) => l.length));
     for (let i = 0; i < max; i++) lists.forEach((l) => { if (l[i] && within(l[i], o)) items.push(Object.assign(l[i], { reason: 'recente', label: 'Nuovo annuncio' })); });
@@ -181,9 +201,15 @@ async function feed(page, opts) {
     const pmax = o.pmax ? Math.min(o.pmax, r.p) : r.p;
     const s = { make: r.make, model: r.model, kw: r.kw || '', ymin: String(r.y[0]), ymax: String(r.y[1]), pmax: String(pmax), kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'rilevanza' };
     const tag = { reason: 'rara', label: 'Da appassionati', fact: r.f };
-    jobs.push(Promise.all([fromAS(s), fromSubito(s)]).then(([a, b]) => {
+    // dall'estero una fonte a caso per auto (Germania o Olanda), così le richieste restano poche
+    const foreign = !abroad ? Promise.resolve([]) : rand() < 0.6 ? fromKA(s) : fromMP(s);
+    jobs.push(Promise.all([fromAS(Object.assign({ europe: abroad }, s)), fromSubito(s), foreign]).then(([a, b, c]) => {
       const ok = (it) => kwOk(it, r.kw) && within(it, o);
-      return sample(a.filter(ok), 3, rand).concat(sample(b.filter(ok), 2, rand)).map((it) => Object.assign(it, tag));
+      // Kleinanzeigen/Marktplaats cercano a parole: il modello deve comparire nel titolo
+      const okF = (it) => ok(it) && kwOk(it, /^(Serie|Classe) /.test(r.model) ? '' : r.model) &&
+        it.price <= pmax && (!it.year || (it.year >= r.y[0] && it.year <= r.y[1]));
+      return sample(a.filter(ok), 3, rand).concat(sample(b.filter(ok), 2, rand), sample(c.filter(okF), 2, rand))
+        .map((it) => Object.assign(it, tag));
     }));
   });
   pop.forEach(([make, model]) => {
