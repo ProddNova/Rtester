@@ -8,6 +8,7 @@ const { getPage } = require('./fetch');
 const DEDUP = require('../public/js/dedup.js');
 const AS = require('./sources/autoscout');
 const SUB = require('./sources/subito');
+const TV = require('./sources/trovit');
 
 // make, model (nome come su AutoScout24), kw = parola chiave, y = anni, p = prezzo massimo sensato, f = curiosità
 const RARE = [
@@ -76,20 +77,57 @@ const POPULAR = [
   ['Nissan', 'Qashqai'], ['Hyundai', 'i20'], ['Kia', 'Sportage'], ['Skoda', 'Octavia'], ['MINI', 'Cooper'], ['Volvo', 'XC60']
 ];
 
-function daySeed() { return Math.floor(Date.now() / 86400000); }
 function pick(list, start, n) { const out = []; for (let i = 0; i < n; i++) out.push(list[(start + i) % list.length]); return out; }
 
-async function fromAS(search) {
-  try { return AS.parse(await getPage(AS.url(search, 1))).items; } catch (e) { return []; }
+// Generatore casuale con seme (stesso seme = stesso ordine: le pagine successive non si ripetono)
+function rng(seed) {
+  let t = (seed >>> 0) || 1;
+  return () => {
+    t += 0x6D2B79F5;
+    let r = Math.imul(t ^ (t >>> 15), 1 | t);
+    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
 }
-async function fromSubito(search) {
+function shuffle(arr, rand) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+// prende n elementi a caso (non sempre i primi, che spesso sono dello stesso concessionario)
+function sample(list, n, rand) { return shuffle(list, rand).slice(0, n); }
+
+// Mescola evitando due annunci di fila dello stesso modello
+function spread(items, rand) {
+  const groups = {};
+  shuffle(items, rand).forEach((it) => { const g = (it.title || '').toLowerCase(); (groups[g] = groups[g] || []).push(it); });
+  const out = [];
+  let last = null;
+  while (Object.keys(groups).length) {
+    // il gruppo più numeroso diverso dall'ultimo usato
+    const keys = Object.keys(groups).filter((k) => k !== last).sort((a, b) => groups[b].length - groups[a].length || rand() - 0.5);
+    const k = keys.length ? keys[0] : last;
+    out.push(groups[k].shift());
+    if (!groups[k].length) delete groups[k];
+    last = k;
+  }
+  return out;
+}
+
+async function fromAS(search, page) {
+  try { return AS.parse(await getPage(AS.url(search, page || 1))).items; } catch (e) { return []; }
+}
+async function fromSubito(search, page) {
   try {
-    for (const u of SUB.urls(search, 1)) {
+    for (const u of SUB.urls(search, page || 1)) {
       const html = await getPage(u);
       if (html) return SUB.parse(html).items;
     }
   } catch (e) { /* sito non raggiungibile: niente */ }
   return [];
+}
+async function fromTrovit(search, page) {
+  try { return TV.parse(await getPage(TV.url(search, page || 1))).items; } catch (e) { return []; }
 }
 
 function kwOk(it, kw) {
@@ -97,37 +135,60 @@ function kwOk(it, kw) {
   const t = (it.title + ' ' + it.version).toLowerCase().replace(/[^a-z0-9]/g, '');
   return t.includes(kw.toLowerCase().replace(/[^a-z0-9]/g, ''));
 }
+function n(v) { const x = parseInt(v, 10); return isNaN(x) || x <= 0 ? 0 : x; }
+function within(it, o) {
+  if (o.pmax && it.price > o.pmax) return false;
+  if (o.kmmax && it.km && it.km > o.kmmax) return false;
+  return true;
+}
 
-async function feed(page) {
+/*
+ * opts: { mode: 'mix' | 'recenti', seed, pmax, kmmax }
+ *  - mix: 4 auto da appassionati diverse + 2 modelli diffusi con prezzo sotto il mercato, a ogni pagina
+ *  - recenti: gli ultimi annunci pubblicati (AutoScout24, Subito, Trovit)
+ */
+async function feed(page, opts) {
+  opts = opts || {};
   page = Math.max(0, Math.min(200, parseInt(page, 10) || 0));
-  const seed = daySeed();
-  const rare = pick(RARE, (seed * 7 + page * 3) % RARE.length, 3);
-  const pop = pick(POPULAR, (seed * 5 + page * 2) % POPULAR.length, 2);
+  const seed = n(opts.seed) || Math.floor(Date.now() / 3600000);
+  const o = { pmax: n(opts.pmax), kmmax: n(opts.kmmax) };
+  const rand = rng(seed * 31 + page);
 
-  // ordine dei gruppi pensato per alternare i modelli: prima AutoScout24 di ogni rara, poi gli affari, poi Subito
-  const asJobs = [], subJobs = [];
+  if (opts.mode === 'recenti') {
+    const s = { pmax: o.pmax ? String(o.pmax) : '', kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'recenti' };
+    const lists = await Promise.all([fromAS(s, page + 1), fromSubito(s, page + 1), fromTrovit(Object.assign({ make: 'auto' }, s), page + 1)]);
+    const items = [];
+    const max = Math.max(0, ...lists.map((l) => l.length));
+    for (let i = 0; i < max; i++) lists.forEach((l) => { if (l[i] && within(l[i], o)) items.push(Object.assign(l[i], { reason: 'recente', label: 'Nuovo annuncio' })); });
+    return { page, items: DEDUP.mergeListings([], items), hasMore: true };
+  }
+
+  // ordine casuale ma fisso per questo seme: pagina dopo pagina si scorrono modelli sempre diversi
+  const rareOrder = shuffle(RARE, rng(seed));
+  const popOrder = shuffle(POPULAR, rng(seed + 1));
+  const rare = pick(rareOrder, page * 4, 4);
+  const pop = pick(popOrder, page * 2, 2);
+
+  const jobs = [];
   rare.forEach((r) => {
-    const s = { make: r.make, model: r.model, kw: r.kw || '', ymin: String(r.y[0]), ymax: String(r.y[1]), pmax: String(r.p), sort: 'rilevanza' };
+    const pmax = o.pmax ? Math.min(o.pmax, r.p) : r.p;
+    const s = { make: r.make, model: r.model, kw: r.kw || '', ymin: String(r.y[0]), ymax: String(r.y[1]), pmax: String(pmax), kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'rilevanza' };
     const tag = { reason: 'rara', label: 'Da appassionati', fact: r.f };
-    asJobs.push(fromAS(s).then((items) => items.filter((it) => kwOk(it, r.kw)).slice(0, 6).map((it) => Object.assign(it, tag))));
-    subJobs.push(fromSubito(s).then((items) => items.filter((it) => kwOk(it, r.kw)).slice(0, 4).map((it) => Object.assign(it, tag))));
+    jobs.push(Promise.all([fromAS(s), fromSubito(s)]).then(([a, b]) => {
+      const ok = (it) => kwOk(it, r.kw) && within(it, o);
+      return sample(a.filter(ok), 3, rand).concat(sample(b.filter(ok), 2, rand)).map((it) => Object.assign(it, tag));
+    }));
   });
-  const jobs = asJobs;
   pop.forEach(([make, model]) => {
-    const s = { make, model, ymin: '2008', pmax: '25000', sort: 'rilevanza' };
+    const s = { make, model, ymin: '2008', pmax: String(o.pmax || 25000), kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'rilevanza' };
     // affari secondo la valutazione di AutoScout24 (1 = ottimo, 2 = buon prezzo)
-    jobs.push(fromAS(s).then((items) => items.filter((it) => it.deal === 1 || it.deal === 2).slice(0, 6)
+    jobs.push(fromAS(s).then((items) => sample(items.filter((it) => (it.deal === 1 || it.deal === 2) && within(it, o)), 4, rand)
       .map((it) => Object.assign(it, { reason: 'affare', label: it.deal === 1 ? 'Affare' : 'Buon prezzo' }))));
   });
 
-  jobs.push(...subJobs);
-  const lists = await Promise.all(jobs);
-  // alterna le fonti, poi unisce i doppioni
-  const mixed = [];
-  const max = Math.max(0, ...lists.map((l) => l.length));
-  for (let i = 0; i < max; i++) lists.forEach((l) => { if (l[i]) mixed.push(l[i]); });
-  const items = DEDUP.mergeListings([], mixed);
-  return { page, items, hasMore: true };
+  const all = [].concat(...(await Promise.all(jobs)));
+  const items = spread(DEDUP.mergeListings([], all), rand);
+  return { page, items, hasMore: page < Math.ceil(RARE.length / 4) * 3 };
 }
 
-module.exports = { feed, RARE, POPULAR };
+module.exports = { feed, RARE, POPULAR, spread, rng };
