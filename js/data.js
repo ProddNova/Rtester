@@ -69,6 +69,11 @@
       'Lexus|IS 200': 'is', 'Lexus|IS 300': 'is', 'Lexus|CT 200h': 'ct', 'Lexus|NX 300': 'nx', 'Lexus|RX 450h': 'rx', 'Lexus|UX 250h': 'ux',
       'MINI|Cooper': 'mini', 'MINI|Countryman': 'mini-countryman', 'MINI|Clubman': 'mini-clubman', 'MINI|John Cooper Works': null,
       'Citroen|DS3': null, 'Maserati|3200 GT': null
+    },
+    automobile: {
+      'Lexus|IS 200': 'is', 'Lexus|IS 300': 'is', 'Lexus|CT 200h': 'ct', 'Lexus|NX 300': 'nx', 'Lexus|RX 450h': 'rx', 'Lexus|UX 250h': 'ux',
+      'Mercedes-Benz|CLK': 'classe_clk', 'Mercedes-Benz|Classe SL': 'serie_sl',
+      'Citroen|2CV': '2_cv', 'Citroen|DS3': null, 'Maserati|3200 GT': null, 'Toyota|Aygo X': null, 'Volkswagen|up!': null
     }
   };
 

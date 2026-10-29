@@ -158,8 +158,9 @@
         var u = function (x) { return slug(x).replace(/-/g, '_'); };
         var parts = [];
         if (s.make) {
-          parts.push(u(s.make));
-          if (s.model) parts.push(u(s.model));
+          parts.push(u(makeSlug('automobile', s.make)));
+          var md = modelSlug('automobile', s.make, s.model);
+          if (md) parts.push(u(md));
         }
         var r = region(s.region);
         if (r) parts.push(u(r.k));
