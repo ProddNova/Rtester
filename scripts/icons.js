@@ -10,7 +10,7 @@ const NAMES = ['house', 'star', 'search', 'share-2', 'languages', 'phone', 'chev
   'flame', 'gem', 'camera', 'map-pin', 'clock', 'trash-2', 'pencil', 'eye-off', 'eye', 'external-link', 'message-circle',
   'trending-down', 'trending-up', 'calendar', 'fuel', 'gauge', 'zap', 'user', 'building-2', 'history', 'wallet', 'car', 'check',
   'triangle-alert', 'arrow-up-down', 'sparkles', 'sun', 'mountain', 'badge-percent', 'shuffle', 'list-filter', 'bookmark', 'info',
-  'circle-alert', 'loader'];
+  'circle-alert', 'loader', 'ban', 'navigation', 'arrow-down-wide-narrow', 'crosshair', 'heart', 'flag', 'chevron-right', 'chevron-down', 'route'];
 
 (async () => {
   const out = {};

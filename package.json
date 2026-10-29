@@ -1,5 +1,5 @@
 {
-  "name": "cacciauto",
+  "name": "autohunter",
   "version": "1.0.0",
   "private": true,
   "description": "Annunci di auto usate da più siti in un'unica lista, senza doppioni. Server Node senza dipendenze.",

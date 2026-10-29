@@ -1,5 +1,5 @@
 // Marktplaats (Olanda): privati e concessionari, dati puliti nel JSON della pagina (__NEXT_DATA__).
-// Nell'URL vanno solo marca, modello (a parole) e pagina: prezzo, anno, km ecc. li filtra CacciAuto.
+// Nell'URL vanno solo marca, modello (a parole) e pagina: prezzo, anno, km ecc. li filtra AutoHunter.
 const { num, normFuel, normGear, nextData, decode, plain, itWord } = require('./common');
 
 const BASE = 'https://www.marktplaats.nl';

@@ -101,8 +101,7 @@
     { k: 'diesel', n: 'Diesel' },
     { k: 'gpl', n: 'GPL' },
     { k: 'metano', n: 'Metano' },
-    { k: 'ibrida', n: 'Ibrida' },
-    { k: 'elettrica', n: 'Elettrica' }
+    { k: 'ibrida', n: 'Ibrida' }
   ];
 
   var GEARS = [

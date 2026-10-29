@@ -3,23 +3,26 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>CacciAuto</title>
+  <title>AutoHunter</title>
   <meta name="description" content="Annunci di auto usate da AutoScout24, AutoSuperMarket, Automobile.it e Trovit in un'unica lista, senza doppioni.">
-  <meta name="theme-color" content="#0e1015">
+  <meta name="theme-color" content="#0f0f0e">
   <meta name="color-scheme" content="dark">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="CacciAuto">
+  <meta name="apple-mobile-web-app-title" content="AutoHunter">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&family=JetBrains+Mono:wght@400;600&display=swap">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
   <header class="top">
     <button class="back" id="btnBack" aria-label="Indietro" data-icon="chevron-left" hidden></button>
-    <a class="brand" href="#/" id="brand" data-icon="car">CacciAuto</a>
+    <a class="brand" href="#/" id="brand" data-icon="crosshair"><span class="word"><b>Auto</b><i>Hunter</i></span></a>
     <div class="top-title" id="topTitle"></div>
     <nav class="top-actions">
       <a class="ibtn" href="#/" id="navSearch" aria-label="Home" data-icon="house"></a>
@@ -32,7 +35,7 @@
     <form id="searchForm" autocomplete="off" class="quick card">
       <div class="grid2">
         <label>Marca<span class="combo"><input name="make" id="fMake" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" placeholder="Tutte le marche"><button type="button" class="clear" tabindex="-1" aria-label="Cancella" data-icon="x"></button></span></label>
-        <label>Modello<span class="combo"><input name="model" id="fModel" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Scegli prima la marca" disabled><button type="button" class="clear" tabindex="-1" aria-label="Cancella" data-icon="x"></button></span></label>
+        <label>Modello<span class="combo"><input name="model" id="fModel" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Prima la marca" disabled><button type="button" class="clear" tabindex="-1" aria-label="Cancella" data-icon="x"></button></span></label>
         <label>Prezzo fino a<select name="pmax" data-list="price"><option value="">Qualsiasi</option></select></label>
         <label>Anno da<select name="ymin" data-list="year"><option value="">Qualsiasi</option></select></label>
       </div>
@@ -62,7 +65,12 @@
               <option value="it">Solo Italia</option>
               <option value="estero">Solo estero</option>
             </select></label>
-            <label class="span2">Regione (solo Italia)<select name="region" id="fRegion"><option value="">Tutta Italia</option></select></label>
+            <label>Distanza da Genova<select name="radius">
+              <option value="">Qualsiasi</option><option value="25">Entro 25 km</option><option value="50">Entro 50 km</option>
+              <option value="100">Entro 100 km</option><option value="150">Entro 150 km</option><option value="200">Entro 200 km</option>
+              <option value="300">Entro 300 km</option>
+            </select></label>
+            <label>Regione<select name="region" id="fRegion"><option value="">Tutta Italia</option></select></label>
           </div>
           <div class="sheet-actions">
             <button type="button" class="sbtn ghost" id="btnReset">Azzera tutto</button>
@@ -78,10 +86,10 @@
 
     <div class="feed-head">
       <div class="seg" id="feedMode" role="tablist" aria-label="Cosa mostrare">
-        <button type="button" data-mode="mix" data-icon="gem">Appassionati e affari</button>
-        <button type="button" data-mode="recenti" data-icon="clock">Più recenti</button>
+        <button type="button" data-mode="mix" data-icon="gem">Da caccia</button>
+        <button type="button" data-mode="recenti" data-icon="clock">Appena usciti</button>
       </div>
-      <button class="link" id="btnFeedRefresh" type="button" data-icon="shuffle">Mescola</button>
+      <button class="ibtn sm shuffle" id="btnFeedRefresh" type="button" aria-label="Mescola" title="Mescola" data-icon="shuffle"></button>
     </div>
     <div class="feed-filters">
       <label>Budget max<select id="feedPmax" data-list="price"><option value="">Qualsiasi</option></select></label>
@@ -99,16 +107,28 @@
       <button class="ibtn sm" id="btnSaveSearch" aria-label="Salva ricerca" data-icon="bookmark"></button>
     </div>
     <div class="res-head">
-      <span id="resInfo" class="muted"></span>
-      <select id="sort" aria-label="Ordina">
+      <span id="resInfo"></span>
+    </div>
+    <div class="sort-row">
+      <label>Ordina<select id="sort">
         <option value="rilevanza">Misti</option>
+        <option value="vicini">Più vicini</option>
         <option value="affari">Affari prima</option>
         <option value="prezzo">Prezzo più basso</option>
         <option value="prezzo_desc">Prezzo più alto</option>
         <option value="km">Meno km</option>
         <option value="anno">Più nuove</option>
         <option value="recenti">Più recenti</option>
-      </select>
+      </select></label>
+      <label>Poi<select id="sort2">
+        <option value="">—</option>
+        <option value="prezzo">Prezzo più basso</option>
+        <option value="vicini">Più vicini</option>
+        <option value="affari">Affari prima</option>
+        <option value="km">Meno km</option>
+        <option value="anno">Più nuove</option>
+        <option value="recenti">Più recenti</option>
+      </select></label>
     </div>
     <div id="sources" class="sources"></div>
     <div id="results" class="list"></div>
@@ -139,6 +159,17 @@
       <button class="link" id="btnCheck" data-icon="refresh-cw">Controlla prezzi</button>
     </div>
     <div id="saved" class="list"></div>
+
+    <section class="banbox" id="banbox">
+      <h2>Ban list</h2>
+      <p class="muted">Modelli che non compaiono mai, né nelle ricerche né nella home. Vale per tutti. Le auto elettriche sono escluse sempre.</p>
+      <div id="bans" class="chips"></div>
+      <div class="banadd">
+        <select id="banMake" aria-label="Marca"><option value="">Marca…</option></select>
+        <select id="banModel" aria-label="Modello" disabled><option value="">Prima la marca</option></select>
+        <button class="sbtn" id="btnBan" type="button" data-icon="ban">Banna</button>
+      </div>
+    </section>
   </main>
 
   <dialog id="dlg" class="sheet">
@@ -157,6 +188,7 @@
   <script src="js/lang.js"></script>
   <script src="js/sites.js"></script>
   <script src="js/dedup.js"></script>
+  <script src="js/match.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

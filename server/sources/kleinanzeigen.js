@@ -70,6 +70,11 @@ function when(s) {
   return null;
 }
 
+// "März 1998" -> "Marzo 1998"
+const DE_MONTHS = { januar: 'Gennaio', februar: 'Febbraio', 'märz': 'Marzo', april: 'Aprile', mai: 'Maggio', juni: 'Giugno', juli: 'Luglio',
+  august: 'Agosto', september: 'Settembre', oktober: 'Ottobre', november: 'Novembre', dezember: 'Dicembre' };
+function deMonth(s) { return String(s || '').replace(/[A-Za-zä]+/g, (w) => DE_MONTHS[w.toLowerCase()] || w); }
+
 // Annunci di chi compra ("Kaufe", "Suche", "Ankauf"...) e non vende
 const BUYER = /\b(kaufe|suche|gesucht|ankauf|aufkauf|wir kaufen)\b/i;
 
@@ -154,7 +159,7 @@ function detail(html) {
     negotiable: /\bVB\b/.test(priceTxt),
     km: num(spec.Kilometerstand),
     year: num((ez.match(/(19|20)\d\d/) || [])[0]),
-    reg: ez,
+    reg: deMonth(ez),
     fuel: normFuel(spec.Kraftstoffart),
     fuelLabel: itWord(spec.Kraftstoffart),
     gear: normGear(spec.Getriebe),

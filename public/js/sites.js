@@ -126,6 +126,8 @@
         }
         var abroad = !s.region && (s.europe || s.area === 'eu' || s.area === 'estero');
         var r = !abroad && region(s.region);
+        // raggio da casa (Genova): AutoScout24 lo sa fare da solo
+        if (num(s.radius) && num(s.radius) < 500) { r = { cap: '16121', r: String(num(s.radius)) }; abroad = false; }
         var sort = SORT[s.sort] || ['standard', '0'];
         var cvToKw = function (cv) { var n = num(cv); return n ? Math.round(n / 1.36) : ''; };
         return path + qs({
@@ -139,7 +141,8 @@
           fregfrom: num(s.ymin), fregto: num(s.ymax),
           kmfrom: num(s.kmmin), kmto: num(s.kmmax),
           custtype: s.seller === 'privato' ? 'P' : s.seller === 'concessionario' ? 'D' : '',
-          fuel: FUEL[s.fuel], gear: GEAR[s.gear], body: BODY[s.body],
+          // senza scelta: tutte tranne le elettriche (escluse sempre)
+          fuel: FUEL[s.fuel] || 'B,D,L,C,2,3,O', gear: GEAR[s.gear], body: BODY[s.body],
           powerfrom: cvToKw(s.cvmin), powerto: cvToKw(s.cvmax), powertype: (num(s.cvmin) || num(s.cvmax)) ? 'kw' : '',
           zip: r ? r.cap : '', zipr: r ? r.r : '',
           sort: sort[0], desc: sort[1]

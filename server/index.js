@@ -1,11 +1,12 @@
 /*
- * Server di CacciAuto: serve il sito (public/) e le API.
+ * Server di AutoHunter: serve il sito (public/) e le API.
  *   GET  /api/search?s={filtri}&page=N   annunci da tutti i siti
  *   GET  /api/feed?page=N                 annunci da scorrere in home (affari e auto da appassionati)
  *   GET  /api/ad?url=...                  dettaglio di un annuncio
  *   POST /api/translate {text, from}      traduzione in italiano
  *   GET  /api/saved · POST /api/saved     salvati condivisi {action: add|remove|note|restore}
  *   GET  /api/searches · POST             ricerche salvate condivise {action: add|remove|restore}
+ *   GET  /api/bans · POST                 ban list condivisa {action: add|remove|restore} (marca + modello)
  * Nessuna dipendenza: solo Node (>= 18).
  */
 const http = require('http');
@@ -124,6 +125,50 @@ function cleanSearch(raw, keepStamps) {
 
 const out = (data) => ({ items: data.items, tomb: data.tomb, bootId: store.bootId });
 
+// ---- ban list: modelli da non vedere mai (marca + modello precisi), uguale per tutti
+const MAX_BANS = 200;
+// si parte con l'Abarth 500; se qualcuno lo toglie resta tolto (ricordato nelle cancellazioni)
+const DEFAULT_BANS = [{ id: 'abarth|500', make: 'Abarth', model: '500', savedAt: 1 }];
+const banId = (make, model) => (str(make, 40) + '|' + str(model, 40)).toLowerCase();
+function cleanBan(raw, keepStamps) {
+  const make = str(raw && raw.make, 40), model = str(raw && raw.model, 40);
+  if (!make || !model) return null;
+  return { id: banId(make, model), make, model, savedAt: (keepStamps && past(raw.savedAt)) || Date.now() };
+}
+async function bansData() {
+  const d = await store.get('bans');
+  if (d.items.length || Object.keys(d.tomb).length) return d;
+  return store.update('bans', () => DEFAULT_BANS.slice());
+}
+async function currentBans() {
+  try { return (await bansData()).items; } catch (e) { return DEFAULT_BANS; }
+}
+async function bansApi(req, res) {
+  if (req.method === 'GET') return json(req, res, 200, out(await bansData()));
+  const body = await readBody(req);
+  let data;
+  if (body.action === 'restore') {
+    const items = (Array.isArray(body.items) ? body.items : []).slice(0, MAX_BANS).map((x) => cleanBan(x, true)).filter(Boolean);
+    const tomb = {};
+    Object.keys(body.tomb || {}).slice(0, 1000).forEach((k) => { const t = past(body.tomb[k]); if (t && k.length < 90) tomb[k] = t; });
+    await bansData();
+    data = await store.restore('bans', items, tomb, (x) => x.id, (x) => x.savedAt);
+  } else {
+    await bansData();
+    data = await store.update('bans', (items, tomb) => {
+      if (body.action === 'add') {
+        const b = cleanBan(body);
+        if (!b) throw httpError(400, 'servono marca e modello');
+        delete tomb[b.id];
+        return [b].concat(items.filter((x) => x.id !== b.id)).slice(0, MAX_BANS);
+      }
+      if (body.action === 'remove') { const id = str(body.id, 90).toLowerCase(); tomb[id] = Date.now(); return items.filter((x) => x.id !== id); }
+      throw httpError(400, 'azione sconosciuta');
+    });
+  }
+  json(req, res, 200, out(data));
+}
+
 async function savedApi(req, res) {
   if (req.method === 'GET') return json(req, res, 200, out(await store.get('saved')));
   const body = await readBody(req);
@@ -210,15 +255,17 @@ async function api(req, res, url) {
   }
 
   if (p === '/api/search') {
-    if (!allowed('search', ip, 60)) return json(req, res, 429, { error: 'Troppe ricerche, aspetta un paio di minuti' });
+    // il telefono chiede un sito alla volta (in parallelo): fino a 8 richieste per ricerca
+    if (!allowed('search', ip, 400)) return json(req, res, 429, { error: 'Troppe ricerche, aspetta un paio di minuti' });
     let s;
     try { s = JSON.parse(url.searchParams.get('s') || '{}'); } catch (e) { return json(req, res, 400, { error: 'ricerca non valida' }); }
-    return json(req, res, 200, await search(s, url.searchParams.get('page')));
+    const only = /^[a-z]{3,20}$/.test(url.searchParams.get('src') || '') ? url.searchParams.get('src') : '';
+    return json(req, res, 200, await search(s, url.searchParams.get('page'), { bans: await currentBans(), only }));
   }
   if (p === '/api/feed') {
     if (!allowed('feed', ip, 60)) return json(req, res, 429, { error: 'Troppe richieste, aspetta un paio di minuti' });
     const q = url.searchParams;
-    return json(req, res, 200, await feed(q.get('page'), { mode: q.get('mode'), seed: q.get('seed'), pmax: q.get('pmax'), kmmax: q.get('kmmax'), area: q.get('area') }));
+    return json(req, res, 200, await feed(q.get('page'), { mode: q.get('mode'), seed: q.get('seed'), pmax: q.get('pmax'), kmmax: q.get('kmmax'), area: q.get('area'), bans: await currentBans() }));
   }
   if (p === '/api/ad') {
     if (!allowed('ad', ip, 150)) return json(req, res, 429, { error: 'Troppe richieste, aspetta un attimo' });
@@ -234,6 +281,7 @@ async function api(req, res, url) {
   }
   if (p === '/api/saved') return savedApi(req, res);
   if (p === '/api/searches') return searchesApi(req, res);
+  if (p === '/api/bans') return bansApi(req, res);
   json(req, res, 404, { error: 'non trovato' });
 }
 
@@ -262,7 +310,7 @@ const server = http.createServer((req, res) => {
 });
 
 if (require.main === module) {
-  server.listen(PORT, () => console.log('CacciAuto in ascolto sulla porta ' + PORT + ' (archivio: ' + store.mode + ')'));
+  server.listen(PORT, () => console.log('AutoHunter in ascolto sulla porta ' + PORT + ' (archivio: ' + store.mode + ')'));
 }
 
 module.exports = server;

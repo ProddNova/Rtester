@@ -1,10 +1,10 @@
-# Sveglia del mattino: alle 8:00 (ora italiana) chiama CacciAuto così il server di Render
+# Sveglia del mattino: alle 8:00 (ora italiana) chiama AutoHunter così il server di Render
 # è già sveglio quando lo apri. Il resto della giornata lo tiene sveglio il server stesso
 # (server/keepalive.js), che dalle 3 alle 8 si riposa.
 #
 # Indirizzo dell'app: variabile del repo CACCIAUTO_URL (Settings > Secrets and variables > Actions > Variables).
 # Se non c'è, prova https://cacciauto.onrender.com
-name: Sveglia CacciAuto
+name: Sveglia AutoHunter
 
 on:
   schedule:

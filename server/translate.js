@@ -39,8 +39,8 @@ async function translate(text, from) {
   if (from === 'it') return { text, from };
   const key = from + ':' + text;
   if (cache.has(key)) return cache.get(key);
-  const out = [];
-  for (const c of chunks(text)) out.push(await piece(c, from));
+  // i pezzi in parallelo: molto più veloce che uno dopo l'altro
+  const out = await Promise.all(chunks(text).map((c) => piece(c, from)));
   const res = { text: out.join(' ').replace(/ \n/g, '\n'), from };
   cache.set(key, res);
   if (cache.size > 500) cache.delete(cache.keys().next().value);

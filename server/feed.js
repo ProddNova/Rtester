@@ -6,6 +6,8 @@
  */
 const { getPage } = require('./fetch');
 const DEDUP = require('../public/js/dedup.js');
+const MATCH = require('../public/js/match.js');
+const GEO = require('./geo');
 const AS = require('./sources/autoscout');
 const SUB = require('./sources/subito');
 const TV = require('./sources/trovit');
@@ -160,6 +162,7 @@ function n(v) { const x = parseInt(v, 10); return isNaN(x) || x <= 0 ? 0 : x; }
 function within(it, o) {
   // nel feed si scorrono le foto: gli annunci senza foto non ci vanno
   if (!it.image) return false;
+  if (MATCH.isElectric(it) || MATCH.banned(it, o.bans)) return false;
   if (o.pmax && it.price > o.pmax) return false;
   if (o.kmmax && it.km && it.km > o.kmmax) return false;
   return true;
@@ -174,7 +177,7 @@ async function feed(page, opts) {
   opts = opts || {};
   page = Math.max(0, Math.min(200, parseInt(page, 10) || 0));
   const seed = n(opts.seed) || Math.floor(Date.now() / 3600000);
-  const o = { pmax: n(opts.pmax), kmmax: n(opts.kmmax) };
+  const o = { pmax: n(opts.pmax), kmmax: n(opts.kmmax), bans: opts.bans || [] };
   const abroad = opts.area !== 'it';
   const rand = rng(seed * 31 + page);
 
@@ -187,12 +190,14 @@ async function feed(page, opts) {
     const items = [];
     const max = Math.max(0, ...lists.map((l) => l.length));
     for (let i = 0; i < max; i++) lists.forEach((l) => { if (l[i] && within(l[i], o)) items.push(Object.assign(l[i], { reason: 'recente', label: 'Nuovo annuncio' })); });
-    return { page, items: DEDUP.mergeListings([], items), hasMore: true };
+    return { page, items: DEDUP.mergeListings([], items).map(GEO.addDistance), hasMore: true };
   }
 
   // ordine casuale ma fisso per questo seme: pagina dopo pagina si scorrono modelli sempre diversi
-  const rareOrder = shuffle(RARE, rng(seed));
-  const popOrder = shuffle(POPULAR, rng(seed + 1));
+  // i modelli nella ban list non si cercano proprio
+  const ok = (make, model) => !MATCH.banned({ title: make + ' ' + model }, o.bans);
+  const rareOrder = shuffle(RARE.filter((r) => ok(r.make, r.model)), rng(seed));
+  const popOrder = shuffle(POPULAR.filter(([make, model]) => ok(make, model)), rng(seed + 1));
   const rare = pick(rareOrder, page * 4, 4);
   const pop = pick(popOrder, page * 2, 2);
 
@@ -220,7 +225,7 @@ async function feed(page, opts) {
   });
 
   const all = [].concat(...(await Promise.all(jobs)));
-  const items = spread(DEDUP.mergeListings([], all), rand);
+  const items = spread(DEDUP.mergeListings([], all), rand).map(GEO.addDistance);
   return { page, items, hasMore: page < Math.ceil(RARE.length / 4) * 3 };
 }
 

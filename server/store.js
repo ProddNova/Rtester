@@ -16,7 +16,7 @@ const crypto = require('crypto');
 
 const URL_ = process.env.UPSTASH_REDIS_REST_URL;
 const TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
-const PREFIX = 'cacciauto:';
+const PREFIX = 'cacciauto:'; // nome vecchio dell'app: resta così per non perdere i dati già salvati
 const DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const MAX_TOMB = 3000;
 

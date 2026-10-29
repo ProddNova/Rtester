@@ -36,6 +36,7 @@ function parse(html) {
       gear: normGear(v.transmission || det.gearbox),
       cv: cv(det.speedometer),
       city: [loc.city, loc.countryCode && loc.countryCode !== 'IT' ? loc.countryCode : ''].filter(Boolean).join(', '),
+      country: loc.countryCode || 'IT',
       seller: l.seller && l.seller.type === 'PrivateSeller' ? 'privato' : 'concessionario',
       image: img.replace(/\/\d+x\d+\.webp$/, '/480x360.webp'),
       photos: (l.images || []).length,

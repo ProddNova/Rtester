@@ -1,17 +1,17 @@
-/* CacciAuto - interfaccia.
+/* AutoHunter - interfaccia.
  * Pagine (nell'indirizzo dopo #): /  ricerca · /risultati · /annuncio?u=LINK · /salvati
  * Annunci, dettagli e salvati arrivano dal server; sul telefono restano solo comodità
  * (ultima ricerca, annunci già visti, nascosti). */
 (function () {
   'use strict';
-  var D = window.CA_DATA, S = window.CA_SITES, X = window.CA_DEDUP;
+  var D = window.CA_DATA, S = window.CA_SITES, X = window.CA_DEDUP, M = window.CA_MATCH;
   var $ = function (id) { return document.getElementById(id); };
 
   var SITE_NAMES = { autoscout: 'AutoScout24', autosupermarket: 'AutoSuperMarket', automobile: 'Automobile.it', trovit: 'Trovit', subito: 'Subito', kleinanzeigen: 'Kleinanzeigen (DE)', marktplaats: 'Marktplaats (NL)', facebook: 'Marketplace', ilparking: 'ilParking' };
   var SITE_SHORT = { autoscout: 'AS24', autosupermarket: 'ASM', automobile: 'AM.it', trovit: 'Trovit', subito: 'Subito', kleinanzeigen: 'KA.de', marktplaats: 'MP.nl', facebook: 'FB', ilparking: 'ilParking' };
   var DEAL = ['Molto basso', 'Affare', 'Buon prezzo', 'Nella media', 'Un po\' caro', 'Caro', 'Molto caro'];
-  var EMPTY = { make: '', model: '', kw: '', pmin: '', pmax: '', ymin: '', ymax: '', kmmin: '', kmmax: '', fuel: '', gear: '', body: '', seller: '', cvmin: '', cvmax: '', region: '', area: 'eu', sort: 'rilevanza' };
-  var FORM_FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region'];
+  var EMPTY = { make: '', model: '', kw: '', pmin: '', pmax: '', ymin: '', ymax: '', kmmin: '', kmmax: '', fuel: '', gear: '', body: '', seller: '', cvmin: '', cvmax: '', region: '', radius: '', area: 'eu', sort: 'rilevanza', sort2: '' };
+  var FORM_FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region', 'radius'];
 
   // ---------------------------------------------------------------- memoria locale (solo comodità)
   function lget(k, def) { try { var v = localStorage.getItem('ca3.' + k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
@@ -24,8 +24,9 @@
     visited: lget('visited', {}),    // annunci aperti
     recent: lget('recent', []),
     saved: [], savedLoaded: false,
-    mirror: lget('mirror', { saved: { items: [], tomb: {} }, searches: { items: [], tomb: {} }, boot: {} }),
+    mirror: Object.assign({ saved: { items: [], tomb: {} }, searches: { items: [], tomb: {} }, bans: { items: [{ id: 'abarth|500', make: 'Abarth', model: '500', savedAt: 1 }], tomb: {} }, boot: {} }, lget('mirror', {})),
     searches: [],
+    bans: [],
     showHidden: false
   };
   var hadSeen = Object.keys(state.seen).length > 0;
@@ -74,7 +75,7 @@
   }
   function dots(n) { return String(Math.round(Number(n))).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
   function eur(n) { return n ? dots(n) + ' €' : 'Prezzo n.d.'; }
-  function kmf(n) { return n || n === 0 ? dots(n) + ' km' : ''; }
+  function kmf(n) { return n || n === 0 ? dots(n) + '\u00a0km' : ''; }
   function int(v) { var n = parseInt(v, 10); return isNaN(n) || n <= 0 ? '' : n; }
   function kshort(n) { n = Number(n); return n >= 1000 ? String(Math.round(n / 100) / 10).replace('.', ',') + 'k' : String(n); }
   function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
@@ -139,7 +140,7 @@
     });
   }
 
-  var ADV_FIELDS = ['kw', 'pmin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region'];
+  var ADV_FIELDS = ['kw', 'pmin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region', 'radius'];
   function updateMoreCount() {
     var f = $('searchForm'), n = 0;
     ADV_FIELDS.forEach(function (k) { if (String(f.elements[k].value || '').trim()) n++; });
@@ -159,7 +160,8 @@
     { i: 'mountain', n: 'SUV e 4x4', s: { body: 'suv', pmax: '15000' } },
     { i: 'user', n: 'Neopatentati', s: { cvmax: '95', ymin: '2010', pmax: '10000' } },
     { i: 'fuel', n: 'Station wagon diesel', s: { body: 'sw', fuel: 'diesel', pmax: '8000' } },
-    { i: 'user', n: 'Solo privati', s: { seller: 'privato' } }
+    { i: 'user', n: 'Solo privati', s: { seller: 'privato' } },
+    { i: 'map-pin', n: 'Vicino a Genova', s: { radius: '100', sort: 'vicini', sort2: 'prezzo' } }
   ];
 
   // Elenco completo marche/modelli (models.js, da AutoScout24); se manca, la lista ridotta di data.js
@@ -282,14 +284,14 @@
     MODELS_OF = mk ? { groups: mk.g, models: mk.m } : { groups: [], models: [] };
     var inp = $('fModel');
     inp.disabled = !mk;
-    inp.placeholder = mk ? 'Tutti i modelli' : 'Scegli prima la marca';
+    inp.placeholder = mk ? 'Tutti i modelli' : 'Prima la marca';
     modelCombo.set(mk ? value : '');
   }
   function commitCombos() { makeCombo.commit(); modelCombo.commit(); }
 
   function readForm() {
     commitCombos();
-    var f = $('searchForm'), s = Object.assign({}, EMPTY, { sort: state.search.sort || 'rilevanza' });
+    var f = $('searchForm'), s = Object.assign({}, EMPTY, { sort: state.search.sort || 'rilevanza', sort2: state.search.sort2 || '' });
     FORM_FIELDS.forEach(function (k) { s[k] = String(f.elements[k].value || '').trim(); });
     s.area = f.elements.area.value || 'eu';
     // "da" più alto di "fino a": li scambiamo invece di dare zero risultati
@@ -321,6 +323,7 @@
     if (s.seller) p.push(s.seller === 'privato' ? 'Privati' : 'Concessionari');
     if (int(s.cvmin) || int(s.cvmax)) p.push((s.cvmin || '0') + '–' + (s.cvmax || '∞') + ' CV');
     if (s.region) p.push(labelOf(D.REGIONS.map(function (r) { return { k: r.k, n: r.n }; }), s.region));
+    if (int(s.radius)) p.push('entro ' + s.radius + ' km da Genova');
     if (s.area === 'it' || (s.region && s.area !== 'estero')) p.push('solo Italia');
     if (s.area === 'estero') p.push('solo estero');
     return p.join(' · ');
@@ -330,7 +333,7 @@
     Object.keys(EMPTY).forEach(function (k) { if (s[k] && s[k] !== 'rilevanza') o[k] = s[k]; });
     return o;
   }
-  function signature(s) { var c = compact(s); delete c.sort; return JSON.stringify(c); }
+  function signature(s) { var c = compact(s); delete c.sort; delete c.sort2; return JSON.stringify(c); }
 
   function rememberRecent(s) {
     var sig = signature(s);
@@ -367,7 +370,7 @@
   }
   function saveSearch() {
     var name = h('input', { type: 'text', value: summary(state.search).slice(0, 60), maxlength: 80 });
-    dialog('Salva ricerca', [h('p', { class: 'muted', text: 'La vedranno tutti quelli che usano CacciAuto.' }), h('label', { text: 'Nome' }), name], [
+    dialog('Salva ricerca', [h('p', { class: 'muted', text: 'La vedranno tutti quelli che usano AutoHunter.' }), h('label', { text: 'Nome' }), name], [
       { label: 'Salva', cta: true, run: function () {
         post('api/searches', { action: 'add', name: name.value, search: compact(state.search) })
           .then(function (j) { sync('searches', j); toast('Ricerca salvata'); })
@@ -384,56 +387,85 @@
   }
 
   // ---------------------------------------------------------------- risultati
-  var ctrl = null, slowTimer = null;
+  var slowTimer = null;
   function serverSort(s) { return { prezzo: 'prezzo', prezzo_desc: 'rilevanza', km: 'km', recenti: 'recenti' }[s] || 'rilevanza'; }
 
+  // Siti da interrogare (come sul server): "solo Italia" non aspetta nemmeno i siti esteri
+  var ITALY = ['autoscout', 'subito', 'autosupermarket', 'automobile', 'trovit'], ABROAD = ['kleinanzeigen', 'marktplaats'];
+  function sourceIds(s) {
+    if (s.area === 'it' || s.region || (int(s.radius) && int(s.radius) < 500)) return ITALY;
+    if (s.area === 'estero') return ['autoscout'].concat(ABROAD);
+    return ITALY.concat(ABROAD);
+  }
+
+  // Un sito alla volta, tutti in parallelo: gli annunci compaiono appena arriva il primo sito,
+  // senza aspettare il più lento.
+  var searchReq = 0, renderTimer = null;
+  function renderSoon() { clearTimeout(renderTimer); renderTimer = setTimeout(renderResults, 40); }
   function runSearch(more) {
     var s = state.search;
     lset('search', s);
-    var page = more ? results.page + 1 : 1;
+    var myReq = ++searchReq;
+    var ids = sourceIds(s);
     if (!more) {
-      results = { sig: signature(s) + '|' + serverSort(s.sort), items: [], page: 0, hasMore: false, loading: true, sources: [], links: [] };
+      results = { sig: signature(s) + '|' + serverSort(s.sort), items: [], per: {}, hasMore: false, loading: true, pending: 0, sources: ids.map(function (id) { return { id: id, name: SITE_NAMES[id].replace(/ \(..\)$/, ''), wait: true }; }), links: [] };
       rememberRecent(s);
       $('results').innerHTML = '';
       for (var i = 0; i < 6; i++) $('results').appendChild(h('div', { class: 'skel' }));
-      $('resInfo').textContent = 'Cerco su 5 siti…';
-      $('sources').innerHTML = '';
+      $('resInfo').textContent = 'Cerco su ' + ids.length + ' siti…';
+      renderSources();
       $('more').innerHTML = '';
+    } else {
+      ids = ids.filter(function (id) { var p = results.per[id]; return p && p.ok && p.pages > p.page; });
     }
+    if (!ids.length) { results.hasMore = false; return; }
     results.loading = true;
-    if (ctrl) ctrl.abort();
-    ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    results.pending = ids.length;
     clearTimeout(slowTimer);
-    slowTimer = setTimeout(function () { $('resInfo').textContent = 'Sveglio il server… la prima ricerca può metterci fino a un minuto'; }, 6000);
+    slowTimer = setTimeout(function () { if (myReq === searchReq && !results.items.length) $('resInfo').textContent = 'Sveglio il server… la prima ricerca può metterci fino a un minuto'; }, 6000);
     var q = compact(s);
     q.sort = serverSort(s.sort);
-    api('api/search?page=' + page + '&s=' + encodeURIComponent(JSON.stringify(q)), ctrl ? { signal: ctrl.signal } : undefined)
-      .then(function (data) {
-        clearTimeout(slowTimer);
-        results.loading = false;
-        results.page = data.page;
-        results.hasMore = data.hasMore;
-        results.sources = data.sources;
-        results.links = data.links;
-        var now = Date.now();
-        data.items.forEach(function (x) {
-          x.key = keyOf(x);
-          x.isNew = hadSeen && !state.seen[x.key];
-          if (!state.seen[x.key]) state.seen[x.key] = now;
+    var failed = 0;
+    ids.forEach(function (id) {
+      var page = more ? results.per[id].page + 1 : 1;
+      api('api/search?src=' + id + '&page=' + page + '&s=' + encodeURIComponent(JSON.stringify(q)))
+        .then(function (data) {
+          if (myReq !== searchReq) return;
+          var src = (data.sources || [])[0] || { id: id, ok: false, error: 'nessuna risposta' };
+          results.per[id] = { page: page, pages: src.pages || 0, ok: src.ok };
+          var prev = results.sources.filter(function (x) { return x.id === id; })[0];
+          src.count = (prev && prev.count && !prev.wait ? prev.count : 0) + (src.count || 0);
+          results.sources = results.sources.map(function (x) { return x.id === id ? src : x; });
+          if (data.links && data.links.length) results.links = data.links;
+          var now = Date.now();
+          data.items.forEach(function (x) {
+            x.key = keyOf(x);
+            x.isNew = hadSeen && !state.seen[x.key];
+            if (!state.seen[x.key]) state.seen[x.key] = now;
+          });
+          // unisce con quello che c'è già: la stessa auto non compare due volte
+          results.items = X.mergeListings(results.items, data.items);
+          results.items.forEach(function (x) { byUrl[x.url] = x; });
+        })
+        .catch(function () {
+          if (myReq !== searchReq) return;
+          failed++;
+          results.sources = results.sources.map(function (x) { return x.id === id ? { id: id, name: x.name, ok: false, error: 'non raggiungibile' } : x; });
+        })
+        .then(function () {
+          if (myReq !== searchReq) return;
+          results.pending--;
+          results.hasMore = Object.keys(results.per).some(function (k) { var p = results.per[k]; return p.ok && p.pages > p.page; });
+          if (!results.pending) {
+            results.loading = false;
+            clearTimeout(slowTimer);
+            pruneSeen();
+            if (!more && failed === ids.length) { renderOffline(); return; }
+          }
+          estimateDeals(results.items, s);
+          renderSoon();
         });
-        // unisce anche con le pagine già caricate: la stessa auto non compare due volte
-        results.items = X.mergeListings(results.items, data.items);
-        results.items.forEach(function (x) { byUrl[x.url] = x; });
-        pruneSeen();
-        estimateDeals(results.items, s);
-        renderResults();
-      })
-      .catch(function (e) {
-        if (e && e.name === 'AbortError') return;
-        clearTimeout(slowTimer);
-        results.loading = false;
-        renderOffline(e && e.message);
-      });
+    });
   }
 
   function pruneSeen() {
@@ -495,32 +527,56 @@
     return [m[0][3] / m[0][0], m[1][3] / m[1][1], m[2][3] / m[2][2]];
   }
 
-  function sorted(items) {
-    var s = state.search.sort, list = items.slice(), BIG = 1e12;
+  function distLabel(it) { return typeof it.dist === 'number' ? (it.distApprox ? '~' : '') + dots(it.dist) + '\u00a0km' : ''; }
+
+  // Ordinamento a due livelli: "Ordina per" e poi "a parità". Es. più vicini (a fasce di distanza), poi prezzo.
+  var DIST_BANDS = [15, 30, 50, 80, 120, 180, 250, 350, 500, 800, 1200];
+  function band(d) { if (d === null || d === undefined) return 99; for (var i = 0; i < DIST_BANDS.length; i++) if (d <= DIST_BANDS[i]) return i; return DIST_BANDS.length; }
+  function comparator(key, banded) {
+    var BIG = 1e12;
     var devOf = function (it) {
       if (typeof it.dev === 'number') return it.dev;
       return typeof it.dealCat === 'number' ? [0.5, -0.2, -0.1, 0, 0.1, 0.2, 0.3][it.dealCat] : BIG;
     };
-    if (s === 'prezzo') list.sort(function (a, b) { return (a.price || BIG) - (b.price || BIG); });
-    else if (s === 'prezzo_desc') list.sort(function (a, b) { return (b.price || 0) - (a.price || 0); });
-    else if (s === 'km') list.sort(function (a, b) { return (a.km === null ? BIG : a.km) - (b.km === null ? BIG : b.km); });
-    else if (s === 'anno') list.sort(function (a, b) { return (b.year || 0) - (a.year || 0); });
-    else if (s === 'affari') list.sort(function (a, b) { return devOf(a) - devOf(b); });
+    var nn = function (v) { return v === null || v === undefined ? BIG : v; };
+    switch (key) {
+      case 'prezzo': return function (a, b) { return (a.price || BIG) - (b.price || BIG); };
+      case 'prezzo_desc': return function (a, b) { return (b.price || 0) - (a.price || 0); };
+      case 'km': return function (a, b) { return nn(a.km) - nn(b.km); };
+      case 'anno': return function (a, b) { return (b.year || 0) - (a.year || 0); };
+      case 'affari': return function (a, b) { return devOf(a) - devOf(b); };
+      case 'recenti': return function (a, b) { return (b.posted || 0) - (a.posted || 0); };
+      case 'vicini': return banded ? function (a, b) { return band(a.dist) - band(b.dist); } : function (a, b) { return nn(a.dist) - nn(b.dist); };
+      default: return null;
+    }
+  }
+  function sorted(items) {
+    var s1 = state.search.sort, s2 = state.search.sort2;
+    var list = items.map(function (x, i) { x._i = i; return x; });
+    var c1 = comparator(s1, !!comparator(s2)), c2 = s2 && s2 !== s1 ? comparator(s2, false) : null;
+    if (c1 || c2) {
+      list.sort(function (a, b) {
+        var r = c1 ? c1(a, b) : 0;
+        if (!r && c2) r = c2(a, b);
+        return r || a._i - b._i; // a parità resta l'ordine di arrivo
+      });
+    }
     // nell'ordine normale gli annunci senza foto vanno in fondo
-    if (s === 'rilevanza' || s === 'recenti') list = list.filter(function (x) { return x.image; }).concat(list.filter(function (x) { return !x.image; }));
+    if (!c1) list = list.filter(function (x) { return x.image; }).concat(list.filter(function (x) { return !x.image; }));
     return list;
   }
 
   function renderResults() {
     var box = $('results');
     box.innerHTML = '';
-    var visible = results.items.filter(function (x) { return state.showHidden || !state.hidden[x.key]; });
+    var visible = results.items.filter(function (x) { return (state.showHidden || !state.hidden[x.key]) && !blocked(x); });
     var nHidden = results.items.length - visible.length;
     var dupes = results.items.filter(function (x) { return x.also && x.also.length; }).length;
     var nNew = results.items.filter(function (x) { return x.isNew; }).length;
     $('resInfo').textContent = results.items.length
-      ? results.items.length + ' annunci' + (nNew ? ' · ' + nNew + ' nuovi' : '') + (dupes ? ' · ' + dupes + ' doppioni uniti' : '')
-      : 'Nessun annuncio';
+      ? results.items.length + ' annunci' + (nNew ? ' · ' + nNew + ' nuovi' : '') + (dupes ? ' · ' + dupes + ' doppioni uniti' : '') +
+        (results.loading && results.pending ? ' · cerco ancora…' : '')
+      : results.loading ? 'Cerco…' : 'Nessun annuncio';
     renderSources();
     if (nHidden || state.showHidden) {
       box.appendChild(h('div', { class: 'hidden-note' }, [
@@ -528,13 +584,16 @@
         h('button', { type: 'button', text: state.showHidden ? 'nascondi di nuovo' : 'mostrali', on: { click: function () { state.showHidden = !state.showHidden; renderResults(); } } })
       ]));
     }
-    if (!visible.length) {
+    if (!visible.length && results.loading) {
+      for (var sk = 0; sk < 4; sk++) box.appendChild(h('div', { class: 'skel' }));
+    } else if (!visible.length) {
       box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Niente con questi filtri' }), 'Allarga budget, anni o km. Oppure prova sui siti qui sopra.']));
     }
     sorted(visible).forEach(function (it) { box.appendChild(adCard(it)); });
     var more = $('more');
     more.innerHTML = '';
-    if (results.hasMore) more.appendChild(h('button', { class: 'sbtn ghost', type: 'button', text: 'Carica altri', on: { click: function () { loadMore(); } } }));
+    if (results.loading && visible.length) more.appendChild(h('div', { class: 'skel' }));
+    else if (results.hasMore) more.appendChild(h('button', { class: 'sbtn ghost', type: 'button', text: 'Carica altri', on: { click: function () { loadMore(); } } }));
   }
 
   function loadMore() {
@@ -548,8 +607,8 @@
     var box = $('sources');
     box.innerHTML = '';
     (results.sources || []).forEach(function (s) {
-      var cls = s.ok ? 'ok' : s.skipped ? 'skip' : 'ko';
-      box.appendChild(h('span', { class: cls, title: s.error || '' }, [s.name + (s.ok ? ' ' + s.count : ' (' + s.error + ')')]));
+      var cls = s.wait ? 'wait' : s.ok ? 'ok' : s.skipped ? 'skip' : 'ko';
+      box.appendChild(h('span', { class: cls, title: s.error || '' }, [s.name + (s.wait ? '…' : s.ok ? ' ' + s.count : ' (' + s.error + ')')]));
     });
     if (results.links && results.links.length) {
       box.appendChild(h('span', null, ['Cerca anche su: '].concat(results.links.map(function (l, i) {
@@ -575,8 +634,22 @@
     ]));
   }
 
+  // Titolo pulito: "Saab 9 - 3" -> "Saab 9-3"; versione senza il modello ripetuto ("9-3 Cabriolet" -> "Cabriolet")
+  function cleanTitle(t) { return String(t || '').replace(/(\d)\s+-\s+(\d)/g, '$1-$2').replace(/\s{2,}/g, ' ').trim(); }
+  function cleanVersion(it) {
+    var v = cleanTitle(it.version), model = cleanTitle(it.title).split(' ').slice(1).join(' ');
+    if (model && v.toLowerCase().indexOf(model.toLowerCase() + ' ') === 0) v = v.slice(model.length + 1);
+    return v.toLowerCase() === model.toLowerCase() ? '' : v;
+  }
+  function titleNodes(it) {
+    var v = cleanVersion(it);
+    return [cleanTitle(it.title), v ? h('small', { text: ' · ' + v }) : null];
+  }
+
   function dealBadge(it) {
     if (typeof it.dealCat !== 'number') return null;
+    // la nostra stima (non quella di AutoScout24) mescola versioni diverse: mostriamo solo i prezzi buoni
+    if (typeof it.deal !== 'number' && it.dealCat >= 3) return null;
     var txt = DEAL[it.dealCat];
     if (typeof it.dev === 'number' && typeof it.deal !== 'number' && it.dealCat !== 3) txt += ' ' + (it.dev > 0 ? '+' : '−') + Math.abs(Math.round(it.dev * 100)) + '%';
     return h('span', { class: 'deal d' + it.dealCat, text: txt });
@@ -602,12 +675,13 @@
   }
 
   function adCard(it) {
-    var meta = [kmf(it.km), it.year, cap(it.fuel), it.cv ? it.cv + ' CV' : '', it.gear === 'automatico' ? 'Aut.' : ''].filter(Boolean).join(' · ');
+    var meta = [kmf(it.km), it.year, cap(it.fuel), it.cv ? it.cv + '\u00a0CV' : '', it.gear === 'automatico' ? 'Aut.' : ''].filter(Boolean).join(' · ');
     var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
     if (it.note) tags.push(h('span', { class: 'tag warn', text: it.note }));
     if (it.postedLabel) tags.push(h('span', { text: it.postedLabel }));
+    if (typeof it.dist === 'number') tags.push(h('span', { class: 'dist', text: distLabel(it) }));
     if (it.city) tags.push(h('span', { class: 'city', text: it.city }));
     var href = '#/annuncio?u=' + encodeURIComponent(it.url);
     return h('a', { class: 'ad' + (state.visited[it.key] ? ' visited' : ''), href: href }, [
@@ -617,7 +691,7 @@
         it.photos > 1 ? h('span', { class: 'n' }, [ic('camera'), String(it.photos)]) : null
       ]),
       h('div', { class: 'bd' }, [
-        h('div', { class: 'tt' }, [it.title, it.version ? h('small', { text: ' · ' + it.version }) : null]),
+        h('div', { class: 'tt' }, titleNodes(it)),
         h('div', { class: 'prow' }, [h('span', { class: 'pr', text: eur(it.price) }), dealBadge(it)]),
         meta ? h('div', { class: 'mt', text: meta }) : null,
         h('div', { class: 'ft' }, tags)
@@ -638,7 +712,7 @@
   }
 
   // ---------------------------------------------------------------- condivisione di un annuncio
-  // Il link apre l'annuncio dentro CacciAuto (foto, scheda...), non sul sito di origine.
+  // Il link apre l'annuncio dentro AutoHunter (foto, scheda...), non sul sito di origine.
   function appLink(url) { return location.origin + location.pathname + '#/annuncio?u=' + encodeURIComponent(url); }
   function shareAd(a) {
     var link = appLink(a.url);
@@ -696,45 +770,83 @@
   }
 
   // "Testo in tedesco · Traduci": traduce sul server, poi si può tornare all'originale
-  function translateBar(original, lang, target) {
-    var bar = h('div', { class: 'tr-bar' });
-    var translated = null, showing = false;
-    var btn = h('button', { class: 'link', type: 'button' }, it2('languages', 'Traduci in italiano'));
-    bar.appendChild(h('span', { text: 'Testo in ' + (window.CA_LANG.NAMES[lang] || lang) }));
-    bar.appendChild(btn);
-    btn.addEventListener('click', function () {
-      if (translated) {
-        showing = !showing;
-        target.textContent = showing ? translated : original;
-        setLabel(btn, 'languages', showing ? 'Mostra originale' : 'Traduci in italiano');
-        return;
-      }
-      setLabel(btn, 'loader', 'Traduco…');
-      btn.disabled = true;
-      post('api/translate', { text: original, from: lang }).then(function (r) {
-        translated = r.text; showing = true;
-        target.textContent = translated;
-        target.classList.remove('clamp');
-        setLabel(btn, 'languages', 'Mostra originale');
-        btn.disabled = false;
-      }).catch(function (e) {
-        btn.disabled = false;
-        setLabel(btn, 'languages', 'Traduci in italiano');
-        bar.appendChild(h('span', null, [
-          'Non riesco (' + e.message + '). ',
-          h('a', { class: 'link', href: 'https://translate.google.com/?sl=auto&tl=it&op=translate&text=' + encodeURIComponent(original.slice(0, 1800)), target: '_blank', rel: 'noopener' }, it2('external-link', 'Apri Google Traduttore'))
-        ]));
+  // ---------------------------------------------------------------- traduzione automatica
+  // Il telefono chiama direttamente MyMemory (gratis, senza account): così il limite giornaliero è di ogni
+  // telefono e non del server (su Render l'IP del server è condiviso e il limite finisce subito).
+  // Se il telefono non ci riesce, prova il server. Le traduzioni restano salvate sul telefono.
+  var trCache = lget('tr', {});
+  function trChunks(text) {
+    var out = [], cur = '';
+    text.split(/(?<=[.!?\n])\s*/).forEach(function (p) {
+      while (p.length > 450) { if (cur) { out.push(cur); cur = ''; } out.push(p.slice(0, 450)); p = p.slice(450); }
+      if ((cur + ' ' + p).length > 450) { if (cur) out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p;
+    });
+    if (cur) out.push(cur);
+    return out;
+  }
+  function trPiece(q, lang) {
+    return fetch('https://api.mymemory.translated.net/get?langpair=' + lang + '|it&q=' + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        var t = j && j.responseData && j.responseData.translatedText;
+        if (!t || j.quotaFinished || j.responseStatus !== 200 || /MYMEMORY WARNING/i.test(t)) throw new Error('limite');
+        return t;
       });
+  }
+  function hashText(t) { var x = 0; for (var i = 0; i < t.length; i++) x = (x * 31 + t.charCodeAt(i)) | 0; return x.toString(36) + '.' + t.length; }
+  function translateText(text, lang) {
+    text = String(text || '').slice(0, 4000);
+    var k = hashText(text);
+    if (trCache[k]) return Promise.resolve(trCache[k]);
+    var parts = trChunks(text);
+    var direct = Promise.all(parts.map(function (c) { return trPiece(c, lang); })).then(function (list) { return list.join(' ').replace(/ \n/g, '\n'); });
+    return direct.catch(function () { return post('api/translate', { text: text, from: lang }).then(function (r) { return r.text; }); })
+      .then(function (t) {
+        trCache[k] = t;
+        var keys = Object.keys(trCache);
+        if (keys.length > 80) delete trCache[keys[0]];
+        lset('tr', trCache);
+        return t;
+      });
+  }
+
+  // Traduce subito (niente pulsante) e lascia la possibilità di vedere l'originale.
+  function autoTranslate(original, lang, target, extra) {
+    var bar = h('div', { class: 'tr-bar' });
+    var name = (window.CA_LANG.NAMES[lang] || lang);
+    var from = ({ de: 'dal ', fr: 'dal ', en: "dall'", es: 'dallo ', nl: "dall'" }[lang] || 'dal ') + name;
+    var translated = null, showing = false;
+    var label = h('span', null, it2('loader', 'Traduco ' + from + '…'));
+    var btn = h('button', { class: 'link', type: 'button', hidden: true });
+    bar.appendChild(label);
+    bar.appendChild(btn);
+    function show(on) {
+      showing = on;
+      target.textContent = on ? translated : original;
+      setLabel(label, 'languages', on ? 'Tradotto ' + from : 'Originale in ' + name);
+      btn.textContent = on ? 'Mostra originale' : 'Mostra traduzione';
+      btn.hidden = false;
+      if (extra) extra(on);
+    }
+    btn.addEventListener('click', function () { show(!showing); });
+    translateText(original, lang).then(function (t) { translated = t; show(true); }).catch(function () {
+      label.innerHTML = '';
+      label.appendChild(h('span', null, [
+        'Traduzione non disponibile ora. ',
+        h('a', { class: 'link', href: 'https://translate.google.com/?sl=auto&tl=it&op=translate&text=' + encodeURIComponent(original.slice(0, 1800)), target: '_blank', rel: 'noopener' }, it2('external-link', 'Google Traduttore'))
+      ]));
     });
     return bar;
   }
 
   function spec(label, value) {
-    if (value === null || value === undefined || value === '') return null;
+    if (value === null || value === undefined || value === '' || /^\s*-\s*(\(|$)/.test(String(value))) return null;
     return h('div', null, [h('small', { text: label }), h('b', { text: String(value) })]);
   }
 
   function renderAd(base, ad, loading, finalUrl, removed, error) {
+    var eqBox = null, eqTr = null;
+    function fillEq(list) { if (!eqBox) return; eqBox.innerHTML = ''; list.forEach(function (x) { eqBox.appendChild(h('span', { text: x })); }); }
     var a = ad || base;
     var site = (ad && ad.site) || base.site;
     var openUrl = finalUrl || base.url;
@@ -755,8 +867,8 @@
     }
 
     wrap.appendChild(h('div', { class: 'ad-head' }, [
-      h('h1', { text: a.title || 'Annuncio' }),
-      a.version ? h('div', { class: 'ver', text: a.version }) : null
+      h('h1', { text: cleanTitle(a.title) || 'Annuncio' }),
+      cleanVersion(a) ? h('div', { class: 'ver', text: cleanVersion(a) }) : null
     ]));
     wrap.appendChild(h('div', { class: 'ad-price' }, [
       h('span', { class: 'pr', text: eur(a.price) }),
@@ -765,7 +877,8 @@
       removed ? h('span', { class: 'gone', text: 'Non più disponibile' }) : null
     ]));
     if (ad && ad.market && ad.market.median) wrap.appendChild(h('div', { class: 'ad-note', text: 'Valutazione ' + ad.market.source + ': prezzo medio di mercato ' + eur(ad.market.median) }));
-    if (base.est) wrap.appendChild(h('div', { class: 'ad-note', text: 'Stima sugli annunci di questa ricerca (anno e km): ' + eur(base.est) }));
+    // la nostra stima la mostriamo solo quando dice "affare" (altrimenti mescola troppe versioni diverse)
+    if (base.est && typeof base.dev === 'number' && base.dev < -0.06) wrap.appendChild(h('div', { class: 'ad-note', text: 'Stima sugli annunci di questa ricerca (anno e km): ' + eur(base.est) }));
     var savedItem = state.saved.filter(function (x) { return x.key === X.listingKey(base.url); })[0];
     if (savedItem && savedItem.history && savedItem.history.length > 1) {
       wrap.appendChild(h('div', { class: 'ad-note', text: 'Storico prezzo: ' + savedItem.history.map(function (x) { return eur(x.p); }).join(' → ') }));
@@ -794,7 +907,7 @@
     }
     if (error) wrap.appendChild(h('div', { class: 'alert', text: 'Non riesco a leggere i dettagli (' + error + '). Puoi aprire l\'annuncio sul sito.' }));
     if (!ad && !error && !removed) {
-      wrap.appendChild(h('div', { class: 'alert', text: siteName + ' non si lascia leggere da CacciAuto: foto e descrizione complete le trovi sul sito.' }));
+      wrap.appendChild(h('div', { class: 'alert', text: siteName + ' non si lascia leggere da AutoHunter: foto e descrizione complete le trovi sul sito.' }));
       if (base.snippet) wrap.appendChild(h('div', { class: 'section desc', text: base.snippet }));
     }
 
@@ -835,7 +948,17 @@
       var desc = h('div', { class: 'desc' + (ad.description.length > 600 ? ' clamp' : ''), text: ad.description });
       var sec = h('div', { class: 'section' }, [h('h3', { text: 'Descrizione' })]);
       var lang = window.CA_LANG ? window.CA_LANG.detect(ad.description) : 'it';
-      if (lang !== 'it') sec.appendChild(translateBar(ad.description, lang, desc));
+      // testi corti: la lingua si capisce anche dal sito (Kleinanzeigen = tedesco, Marktplaats = olandese)
+      if (lang === 'it') lang = { kleinanzeigen: 'de', marktplaats: 'nl' }[site] || (/[äöüß]/i.test(ad.description) ? 'de' : 'it');
+      // dotazioni: tradotte insieme alla descrizione (stessa lingua)
+      var eqOrig = ad.equipment || [];
+      if (lang !== 'it' && eqOrig.length) {
+        translateText(eqOrig.join('\n'), lang).then(function (t) {
+          var list = t.split(/\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+          if (list.length === eqOrig.length) { eqTr = list; if (eqBox) fillEq(eqTr); }
+        }).catch(function () { /* restano in originale */ });
+      }
+      if (lang !== 'it') sec.appendChild(autoTranslate(ad.description, lang, desc, function (on) { if (eqBox) fillEq(on && eqTr ? eqTr : eqOrig); }));
       sec.appendChild(desc);
       if (ad.description.length > 600) {
         sec.appendChild(h('button', { class: 'link', type: 'button', text: 'Mostra tutto', on: { click: function () { desc.classList.remove('clamp'); this.remove(); } } }));
@@ -845,8 +968,9 @@
     if (ad && ad.equipment && ad.equipment.length) {
       wrap.appendChild(h('details', { class: 'section' }, [
         h('summary', null, [h('h3', { style: 'display:inline', text: 'Dotazioni (' + ad.equipment.length + ')' })]),
-        h('div', { class: 'equip' }, ad.equipment.map(function (x) { return h('span', { text: x }); }))
+        eqBox = h('div', { class: 'equip' })
       ]));
+      fillEq(eqTr || ad.equipment);
     }
     if (base.also && base.also.length) {
       wrap.appendChild(h('div', { class: 'section' }, [h('h3', { text: 'Stessa auto anche su' }), h('div', { class: 'chips' }, base.also.map(function (o) {
@@ -860,9 +984,82 @@
         lset('hidden', state.hidden);
         toast(state.hidden[key] ? 'Nascosto dai risultati' : 'Di nuovo visibile');
         if (state.hidden[key]) history.back();
-      } } }, state.hidden[key] ? it2('eye', 'Mostra di nuovo nei risultati') : it2('eye-off', 'Non mi interessa (nascondi dai risultati)'))
+      } } }, state.hidden[key] ? it2('eye', 'Mostra di nuovo nei risultati') : it2('eye-off', 'Non mi interessa (nascondi dai risultati)')),
+      (function () {
+        var g = guessModel(a);
+        if (!g) return null;
+        return h('button', { class: 'link danger', type: 'button', on: { click: function () {
+          dialog('Bannare ' + g.make + ' ' + g.model + '?', [h('p', { class: 'muted', text: 'Non comparirà più per nessuno, né nelle ricerche né nella home. Si toglie dalla Ban list nei Salvati.' })], [
+            { label: 'Banna', cta: true, run: function () { addBan(g.make, g.model).then(function () { history.back(); }); } }
+          ]);
+        } } }, it2('ban', 'Non mostrarmi più ' + g.make + ' ' + g.model));
+      })()
     ]));
     return wrap;
+  }
+
+  // ---------------------------------------------------------------- ban list (condivisa)
+  // Modelli che non vogliamo vedere mai (marca + modello precisi). Le elettriche sono escluse sempre.
+  function blocked(it) { return M.isElectric(it) || M.banned(it, state.bans); }
+  function loadBans() {
+    state.bans = state.mirror.bans.items;
+    return api('api/bans').then(function (j) { sync('bans', j); }).catch(function () { /* server giù: resta la copia */ });
+  }
+  function addBan(make, model) {
+    if (!make || !model) return Promise.resolve();
+    return post('api/bans', { action: 'add', make: make, model: model }).then(function (j) {
+      sync('bans', j);
+      renderResults();
+      feed.items = feed.items.filter(function (x) { return !blocked(x); });
+      $('feed').innerHTML = '';
+      feed.items.forEach(function (it) { $('feed').appendChild(feedCard(it)); });
+    }).catch(function (e) { toast(e.message); });
+  }
+  function removeBan(b) {
+    return post('api/bans', { action: 'remove', id: b.id }).then(function (j) { sync('bans', j); }).catch(function (e) { toast(e.message); });
+  }
+  // Marca e modello di un annuncio, dai nomi dell'elenco (serve per "non mostrarmi più questo modello")
+  function guessModel(it) {
+    var t = M.text(it);
+    var make = null;
+    MAKES.forEach(function (mk) { if (M.makeHit(t, mk.n) && (!make || mk.n.length > make.n.length)) make = mk; });
+    if (!make) return null;
+    var best = '';
+    make.m.concat(make.g).forEach(function (name) {
+      if (name === 'Altro' || name.indexOf('/') !== -1) return;
+      if (t.indexOf(M.words(name)) !== -1 && name.length > best.length) best = name;
+    });
+    return best ? { make: make.n, model: best } : null;
+  }
+  function renderBans() {
+    var box = $('bans');
+    if (!box) return;
+    box.innerHTML = '';
+    if (!state.bans.length) box.appendChild(h('span', { class: 'muted', text: 'Nessun modello bannato.' }));
+    state.bans.forEach(function (b) {
+      box.appendChild(h('span', { class: 'chip ban' }, [
+        h('span', { text: b.make + ' ' + b.model }),
+        h('button', { class: 'x', type: 'button', 'aria-label': 'Togli dal ban', on: { click: function () { removeBan(b); } } }, [ic('x')])
+      ]));
+    });
+  }
+  function buildBanForm() {
+    var mk = $('banMake'), md = $('banModel');
+    fillSelect(mk, MAKES.map(function (m) { return { k: m.n, n: m.n }; }));
+    var fillBanModels = function () {
+      var info = makeInfo(mk.value);
+      md.innerHTML = '';
+      md.appendChild(h('option', { value: '', text: info ? 'Modello…' : 'Prima la marca' }));
+      if (info) info.g.concat(info.m).filter(function (x, i, a) { return x !== 'Altro' && a.indexOf(x) === i; }).sort(function (a, b) { return a.localeCompare(b, 'it', { numeric: true }); })
+        .forEach(function (x) { md.appendChild(h('option', { value: x, text: x })); });
+      md.disabled = !info;
+    };
+    mk.addEventListener('change', fillBanModels);
+    fillBanModels();
+    $('btnBan').addEventListener('click', function () {
+      if (!mk.value || !md.value) { toast('Scegli marca e modello'); return; }
+      addBan(mk.value, md.value).then(function () { md.value = ''; });
+    });
   }
 
   // ---------------------------------------------------------------- feed della home
@@ -892,7 +1089,7 @@
       Array.prototype.forEach.call($('feed').querySelectorAll('.skel'), function (x) { x.remove(); });
       more.innerHTML = '';
       var before = feed.items.length;
-      feed.items = X.mergeListings(feed.items, j.items.map(function (x) { x.key = keyOf(x); return x; }));
+      feed.items = X.mergeListings(feed.items, j.items.filter(function (x) { return !blocked(x); }).map(function (x) { x.key = keyOf(x); return x; }));
       feed.items.slice(before).forEach(function (it) { byUrl[it.url] = it; $('feed').appendChild(feedCard(it)); });
       // pochi annunci (es. budget basso): carica subito la pagina dopo, fino ad averne almeno 12
       if ((feed.items.length === before || feed.items.length < 12) && feed.page < 8 && !feed.done) setTimeout(function () { loadFeed(); }, 50);
@@ -908,11 +1105,11 @@
   }
 
   function feedCard(it) {
-    var meta = [it.year, kmf(it.km), cap(it.fuel), it.cv ? it.cv + ' CV' : ''].filter(Boolean).join(' · ');
+    var meta = [it.year, kmf(it.km), cap(it.fuel), it.cv ? it.cv + '\u00a0CV' : ''].filter(Boolean).join(' · ');
     var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
-    if (it.city) tags.push(h('span', { class: 'mini-ic' }, it2('map-pin', it.city)));
+    if (it.city) tags.push(h('span', { class: 'mini-ic' }, it2('map-pin', [it.city, distLabel(it)].filter(Boolean).join(' · '))));
     var why = it.reason === 'affare' ? it2('badge-percent', it.label || 'Affare')
       : it.reason === 'recente' ? it2('clock', it.postedLabel || (it.posted ? 'Pubblicato ' + agoShort(it.posted) : 'Nuovo annuncio'))
       : it2('gem', it.label || 'Da appassionati');
@@ -923,7 +1120,7 @@
         h('span', { class: 'pr-over', text: eur(it.price) })
       ]),
       h('div', { class: 'bd' }, [
-        h('div', { class: 'tt' }, [it.title, it.version ? h('small', { text: ' · ' + it.version }) : null]),
+        h('div', { class: 'tt' }, titleNodes(it)),
         meta ? h('div', { class: 'mt', text: meta }) : null,
         it.fact ? h('div', { class: 'fact' }, it2('sparkles', it.fact)) : null,
         h('div', { class: 'ft' }, tags)
@@ -984,7 +1181,7 @@
   }
   var syncing = {};
   function mergeLocal(server, local, name) {
-    var key = name === 'saved' ? function (x) { return x.key; } : function (x) { return x.id; };
+    var key = name === 'saved' ? function (x) { return x.key; } : function (x) { return x.id; }; // ricerche e ban: id
     var have = {};
     server.forEach(function (x) { have[key(x)] = 1; });
     return server.concat(local.filter(function (x) { return !have[key(x)]; }));
@@ -996,6 +1193,9 @@
       state.savedLoaded = true;
       renderSavedCount();
       if (currentView() === 'saved') renderSaved();
+    } else if (name === 'bans') {
+      state.bans = j.items || [];
+      renderBans();
     } else {
       state.searches = j.items || [];
       renderSearchLists();
@@ -1020,7 +1220,6 @@
     return req.then(function (j) {
       sync('saved', j);
       renderSavedCount();
-      toast(on ? 'Tolto dai salvati' : 'Salvato (lo vedono tutti)');
     }).catch(function (e) { toast('Non salvato: ' + e.message); });
   }
 
@@ -1057,7 +1256,7 @@
     box.innerHTML = '';
     if (!state.savedLoaded) { box.appendChild(h('div', { class: 'skel' })); return; }
     if (!list.length) {
-      box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Nessun salvato' }), 'Tocca la stella su un annuncio: lo vedranno tutti quelli che usano CacciAuto.']));
+      box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Nessun salvato' }), 'Tocca la stella su un annuncio: lo vedranno tutti quelli che usano AutoHunter.']));
       return;
     }
     list.forEach(function (x) { box.appendChild(savedCard(x)); });
@@ -1177,6 +1376,7 @@
       show('results');
       setLabel($('summary'), 'pencil', summary(state.search));
       $('sort').value = state.search.sort || 'rilevanza';
+      $('sort2').value = state.search.sort2 || '';
       var sig = signature(state.search) + '|' + serverSort(state.search.sort);
       if (results.sig !== sig) { window.scrollTo(0, 0); runSearch(); }
       else { renderResults(); window.scrollTo(0, scrollPos.results || 0); }
@@ -1213,8 +1413,16 @@
     noPinchZoom();
     buildForm();
     buildFeedControls();
+    buildBanForm();
+    renderBans();
+    loadBans();
     $('btnFeedRefresh').addEventListener('click', function () { loadFeed('shuffle'); window.scrollTo(0, $('feedMode').getBoundingClientRect().top + window.scrollY - 70); });
     writeForm(state.search);
+    $('sort2').addEventListener('change', function () {
+      state.search.sort2 = $('sort2').value;
+      lset('search', state.search);
+      renderResults();
+    });
     $('sort').addEventListener('change', function () {
       state.search.sort = $('sort').value;
       lset('search', state.search);

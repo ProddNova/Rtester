@@ -5,7 +5,7 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
-process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'cacciauto-test-'));
+process.env.DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'autohunter-test-'));
 delete process.env.UPSTASH_REDIS_REST_URL;
 const server = require('../server');
 const { sourceFor } = require('../server/detail');
@@ -101,4 +101,18 @@ test('compressione gzip delle risposte grandi', async () => {
   assert.strictEqual(r.status, 200);
   assert.strictEqual(r.headers.get('content-encoding'), 'gzip');
   assert.ok((await r.text()).includes('CA_MODELS'));
+});
+
+test('ban list: parte con Abarth 500, si aggiunge e si toglie, le cancellazioni restano', async () => {
+  let j = await (await fetch(base + '/api/bans')).json();
+  assert.deepStrictEqual(j.items.map((b) => b.id), ['abarth|500']);
+  j = await (await post('/api/bans', { action: 'add', make: 'Fiat', model: 'Multipla' })).json();
+  assert.deepStrictEqual(j.items.map((b) => b.make + ' ' + b.model), ['Fiat Multipla', 'Abarth 500']);
+  let r = await post('/api/bans', { action: 'add', make: 'Fiat' });
+  assert.strictEqual(r.status, 400, 'serve il modello preciso');
+  j = await (await post('/api/bans', { action: 'remove', id: 'abarth|500' })).json();
+  assert.deepStrictEqual(j.items.map((b) => b.id), ['fiat|multipla']);
+  // un telefono con la copia vecchia non fa ricomparire l'Abarth tolto
+  j = await (await post('/api/bans', { action: 'restore', items: [{ id: 'abarth|500', make: 'Abarth', model: '500', savedAt: 1 }], tomb: {} })).json();
+  assert.deepStrictEqual(j.items.map((b) => b.id), ['fiat|multipla']);
 });

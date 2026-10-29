@@ -1,8 +1,8 @@
 /* Service worker: fa funzionare l'app anche offline (i siti di annunci ovviamente no). */
-var CACHE = 'cacciauto-v7';
+var CACHE = 'autohunter-v8';
 var FILES = [
   './', 'index.html', 'css/style.css',
-  'js/icons.js', 'js/data.js', 'js/models.js', 'js/lang.js', 'js/sites.js', 'js/dedup.js', 'js/app.js',
+  'js/icons.js', 'js/data.js', 'js/models.js', 'js/lang.js', 'js/sites.js', 'js/dedup.js', 'js/match.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 
