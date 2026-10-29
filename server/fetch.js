@@ -10,10 +10,19 @@ const cache = new Map();
 
 class BlockedError extends Error {}
 
-async function getPage(url, { timeout = 12000 } = {}) {
-  const hit = cache.get(url);
-  if (hit && Date.now() - hit.t < TTL) return hit.body;
+// Stessa pagina chiesta da due persone nello stesso momento: un solo download.
+const inflight = new Map();
 
+function getPage(url, opts) {
+  const hit = cache.get(url);
+  if (hit && Date.now() - hit.t < TTL) return Promise.resolve(hit.body);
+  if (inflight.has(url)) return inflight.get(url);
+  const p = download(url, opts).finally(() => inflight.delete(url));
+  inflight.set(url, p);
+  return p;
+}
+
+async function download(url, { timeout = 12000 } = {}) {
   const res = await fetch(url, {
     headers: { 'User-Agent': UA, 'Accept-Language': 'it-IT,it;q=0.9', Accept: 'text/html' },
     redirect: 'follow',

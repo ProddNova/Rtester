@@ -5,9 +5,9 @@
 const { getPage, BlockedError } = require('./fetch');
 const SITES = require('../public/js/sites.js');
 const DEDUP = require('../public/js/dedup.js');
-const SOURCES = [require('./sources/autoscout'), require('./sources/autosupermarket'), require('./sources/automobile')];
+const SOURCES = [require('./sources/autoscout'), require('./sources/subito'), require('./sources/autosupermarket'), require('./sources/automobile'), require('./sources/trovit')];
 
-const FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'region', 'europe', 'sort'];
+const FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'seller', 'region', 'europe', 'sort'];
 
 // Tiene solo i campi noti, con lunghezze ragionevoli.
 function cleanSearch(raw) {
@@ -27,12 +27,14 @@ function norm(s) { return SITES.strip(s).toLowerCase().replace(/[^a-z0-9]/g, '')
 // I filtri valgono per tutti i siti: se un sito li ignora, li applichiamo qui.
 // Un dato mancante nell'annuncio non lo esclude (meglio una in più che una persa).
 function matches(it, s, siteId) {
-  const pmin = n(s.pmin), pmax = n(s.pmax), ymin = n(s.ymin), ymax = n(s.ymax), kmmax = n(s.kmmax), cvmin = n(s.cvmin), cvmax = n(s.cvmax);
+  const pmin = n(s.pmin), pmax = n(s.pmax), ymin = n(s.ymin), ymax = n(s.ymax), kmmin = n(s.kmmin), kmmax = n(s.kmmax), cvmin = n(s.cvmin), cvmax = n(s.cvmax);
   if (pmin && it.price < pmin) return false;
   if (pmax && it.price > pmax) return false;
   if (it.year && ymin && it.year < ymin) return false;
   if (it.year && ymax && it.year > ymax) return false;
   if (it.km !== null && kmmax && it.km > kmmax) return false;
+  if (it.km !== null && kmmin && it.km < kmmin) return false;
+  if (s.seller && it.seller && it.seller !== s.seller) return false;
   if (it.cv && cvmin && it.cv < cvmin) return false;
   if (it.cv && cvmax && it.cv > cvmax) return false;
   if (s.fuel && it.fuel && it.fuel !== s.fuel) return false;
@@ -50,12 +52,25 @@ function matches(it, s, siteId) {
 async function fromSource(src, s, page) {
   const url = src.url(s, page);
   const out = { id: src.id, name: src.name, url, ok: true, count: 0, total: null, pages: 0, error: '' };
-  if (src.id === 'automobile' && !s.make) {
-    out.ok = false; out.error = 'serve la marca';
+  const skip = src.id === 'automobile' && !s.make ? 'serve la marca'
+    : src.id === 'trovit' && !s.make && !s.kw ? 'serve la marca'
+    : src.id === 'trovit' && s.region ? 'non filtra per zona'
+    : src.id === 'trovit' && s.body ? 'non filtra la carrozzeria'
+    : '';
+  if (skip) {
+    out.ok = false; out.skipped = true; out.error = skip;
     return { out, items: [] };
   }
   try {
-    const r = src.parse(await getPage(url));
+    // alcuni siti hanno un link "preciso" e uno di riserva (se il primo non esiste: 404 = pagina vuota)
+    const candidates = src.urls ? src.urls(s, page) : [url];
+    let html = '';
+    for (const u of candidates) {
+      html = await getPage(u);
+      out.url = u;
+      if (html) break;
+    }
+    const r = src.parse(html);
     const items = r.items.filter((it) => matches(it, s, src.id));
     out.count = items.length; out.total = r.total; out.pages = r.pages;
     return { out, items };
@@ -73,20 +88,9 @@ function tidy(it) {
   return it;
 }
 
-// Unisce la stessa auto pubblicata su più siti: resta un annuncio, con gli altri link in "also".
+// Unisce la stessa auto pubblicata su più siti (logica condivisa col telefono, in dedup.js).
 function mergeDuplicates(items) {
-  const out = [];
-  items.forEach((it) => {
-    const probe = { title: it.title + ' ' + it.version, price: it.price, km: it.km, year: it.year };
-    const twin = out.find((o) => o.site !== it.site && !o.also.some((a) => a.site === it.site) &&
-      DEDUP.sameCar({ title: o.title + ' ' + o.version, price: o.price, km: o.km, year: o.year }, probe) > 0.5);
-    if (twin) {
-      twin.also.push({ site: it.site, url: it.url, price: it.price });
-      if (!twin.image && it.image) twin.image = it.image;
-      ['km', 'year', 'cv', 'fuel', 'gear', 'city'].forEach((f) => { if (!twin[f] && it[f]) twin[f] = it[f]; });
-    } else out.push(Object.assign({ also: [] }, it));
-  });
-  return out;
+  return DEDUP.mergeListings([], items);
 }
 
 // Alterna i siti (1 AutoScout, 1 AutoSuperMarket, 1 Automobile, ...) per la vista "rilevanza".
@@ -115,7 +119,7 @@ async function search(rawSearch, page) {
     items: sortItems(merged, s.sort),
     sources: res.map((r) => r.out),
     hasMore: res.some((r) => r.out.ok && r.out.pages > page),
-    links: SITES.plan(s).filter((p) => ['subito', 'facebook', 'ilparking'].includes(p.site.id))
+    links: SITES.plan(s).filter((p) => ['facebook', 'ilparking'].includes(p.site.id))
       .map((p) => ({ id: p.site.id, name: p.site.name, url: p.url }))
   };
 }

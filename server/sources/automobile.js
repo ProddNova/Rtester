@@ -1,6 +1,6 @@
 // Automobile.it: risultati nel JSON __NEXT_DATA__. Il sito filtra solo per marca/modello/regione,
 // gli altri filtri li applichiamo noi sui risultati (vedi search.js).
-const { num, normFuel, normGear, cv, year, nextData } = require('./common');
+const { num, normFuel, normGear, cv, year, nextData, plain } = require('./common');
 const SITES = require('../../public/js/sites.js');
 
 const site = SITES.SITES.find((s) => s.id === 'automobile');
@@ -43,4 +43,60 @@ function parse(html) {
   return { items, total: null, pages };
 }
 
-module.exports = { id: 'automobile', name: 'Automobile.it', url, parse };
+function first(s) { const m = String(s || '').match(/\d+/); return m ? +m[0] : null; }
+
+// Pagina del singolo annuncio
+function detail(html) {
+  const d = nextData(html);
+  const pp = d && d.props && d.props.pageProps;
+  const r = pp && pp.result;
+  if (!r || !r.details) return null;
+  const det = r.details;
+  const info = {};
+  const vi = pp.vehicleInformation || {};
+  ['basicInfo', 'aesthetic', 'consumption'].forEach((k) => (vi[k] || []).forEach((x) => { info[x.title] = (x.values || []).join(', '); }));
+  const eq = [];
+  (vi.accessories || []).forEach((g) => (g.values || []).forEach((x) => eq.push(x)));
+  const dealer = r.dealer || {};
+  const addr = dealer.shippingAddress || {};
+  const phones = [dealer.phone, dealer.mobilePhone].filter(Boolean).filter((p, i, a) => a.indexOf(p) === i)
+    .map((p) => ({ label: p, tel: String(p).replace(/[^\d+]/g, '') }));
+  const fuelLabel = String(det.fuelEmissions || '').split(' - ')[0];
+  return {
+    title: r.title || '',
+    version: info.Versione || '',
+    price: num(r.formattedPrice),
+    km: num(det.formattedKm),
+    year: year(det.registration),
+    reg: det.registration || '',
+    fuel: normFuel(fuelLabel),
+    fuelLabel,
+    gear: normGear(det.shift),
+    gearLabel: det.shift || '',
+    cv: cv(det.formattedPower),
+    kw: num((String(det.formattedPower || '').match(/(\d+)\s*KW/i) || [])[1]),
+    cc: num(det.formattedEngineCapacity),
+    body: info.Carrozzeria || '',
+    color: info['Colore esterno'] || '',
+    doors: first(info['Numero di porte']),
+    seats: first(info['Numero di posti']),
+    drive: '',
+    emission: info['Classe emissioni'] || String(det.fuelEmissions || '').split(' - ')[1] || '',
+    consumption: info['Consumo combinato'] || '',
+    description: plain(r.description),
+    photos: (r.vipPictures || []).map((p) => p.imgBig).filter((u) => /^https:\/\//.test(u || '')),
+    equipment: eq,
+    seller: {
+      name: dealer.name || (r.sellerType === 'PRIVATE' ? 'Privato' : ''),
+      type: r.sellerType === 'PRIVATE' ? 'privato' : 'concessionario',
+      city: [addr.street || addr.address, r.location].filter(Boolean).join(', '),
+      phones,
+      whatsapp: ''
+    },
+    posted: null,
+    market: null,
+    removed: r.adStatus && r.adStatus !== 'ACTIVE'
+  };
+}
+
+module.exports = { id: 'automobile', name: 'Automobile.it', url, parse, detail };

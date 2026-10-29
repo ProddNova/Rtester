@@ -71,3 +71,32 @@ test('codifica con caratteri speciali', () => {
   assert.strictEqual(d.list[0].note, 'perché sì 🔥');
   assert.ok(/^[A-Za-z0-9_-]+$/.test(code));
 });
+
+test('doppioni: titoli scritti in modo diverso ma prezzo/km/anno identici', () => {
+  const as = { title: 'Saab 9-3 Cabrio 1.9 tid 16v', price: 8900, km: 75000, year: 2010 };
+  const tv = { title: 'Saab 9 - 3', price: 8900, km: 75000, year: 2010 };
+  assert.ok(X.sameCar(as, tv) > 0.5);
+  const am = { title: 'MX-5 FULL PELLE TOTALE', price: 8999, km: 139999, year: 2007 };
+  assert.ok(X.sameCar(am, { title: 'Mazda MX - 5', price: 8999, km: 139999, year: 2007 }) > 0.5);
+  // auto nuove (km ~0) con lo stesso prezzo NON sono la stessa auto
+  assert.strictEqual(X.sameCar({ title: 'VW Golf GTI', price: 48400, km: 0, year: 2026 }, { title: 'VW Golf GTI Edition', price: 48900, km: 1, year: 2026 }), 0);
+});
+
+test('mergeListings: unisce tra pagine diverse e i ripubblicati dallo stesso venditore', () => {
+  const p1 = [{ key: 'autoscout:1', site: 'autoscout', url: 'https://as/1', title: 'Volkswagen Golf', version: '2.0 TSI GTI', price: 29499, km: 51105, year: 2022 }];
+  const p2 = [
+    { key: 'autoscout:2', site: 'autoscout', url: 'https://as/2', title: 'Volkswagen Golf', version: '2.0 TSI GTI', price: 29499, km: 51105, year: 2022 },
+    { key: 'trovit:3', site: 'trovit', url: 'https://tv/3', title: 'Volkswagen golf 2.0 tsi gti', version: '', price: 29499, km: 51100, year: 2022 },
+    { key: 'subito:4', site: 'subito', url: 'https://sb/4', title: 'Volkswagen Golf', version: '1.6 TDI', price: 12000, km: 150000, year: 2015 },
+    { key: 'autoscout:1', site: 'autoscout', url: 'https://as/1', title: 'Volkswagen Golf', version: '2.0 TSI GTI', price: 29499, km: 51105, year: 2022 }
+  ];
+  const out = X.mergeListings(X.mergeListings([], p1), p2);
+  assert.strictEqual(out.length, 2);
+  assert.deepStrictEqual(out[0].also.map((a) => a.site), ['autoscout', 'trovit']);
+  // stesso sito ma km diversi: auto diverse, restano separate
+  const two = X.mergeListings([], [
+    { key: 'subito:a', site: 'subito', url: 'https://sb/a', title: 'Fiat Panda', price: 3500, km: 167997, year: 2004 },
+    { key: 'subito:b', site: 'subito', url: 'https://sb/b', title: 'Fiat Panda', price: 3500, km: 165000, year: 2004 }
+  ]);
+  assert.strictEqual(two.length, 2);
+});

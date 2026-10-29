@@ -16,7 +16,8 @@
     { id: 'facebook', name: 'Marketplace', re: /(^|\.)(facebook\.com|fb\.com)$/ },
     { id: 'ebay', name: 'eBay', re: /(^|\.)ebay\.[a-z.]+$/ },
     { id: 'mobilede', name: 'mobile.de', re: /(^|\.)mobile\.de$/ },
-    { id: 'autouncle', name: 'AutoUncle', re: /(^|\.)autouncle\.[a-z.]+$/ }
+    { id: 'autouncle', name: 'AutoUncle', re: /(^|\.)autouncle\.[a-z.]+$/ },
+    { id: 'trovit', name: 'Trovit', re: /(^|\.)(trovit\.it|thribee\.com)$/ }
   ];
 
   function strip(s) {
@@ -50,6 +51,7 @@
     var path = decodeURIComponent(u.pathname);
     var m;
     if (site === 'subito' && (m = path.match(/(\d{6,})\.htm/))) return 'subito:' + m[1];
+    if (site === 'trovit' && (m = path.match(/\/id\.([A-Za-z0-9]+)\//))) return 'trovit:' + m[1];
     if (site === 'autoscout' && (m = path.match(/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i))) return 'autoscout:' + m[1].toLowerCase();
     if (site === 'autosupermarket' && (m = path.match(/-([0-9a-f]{12,})\/?$/i))) return 'autosupermarket:' + m[1].toLowerCase();
     if (site === 'automobile' && (m = path.match(/\/(\d{6,})\/?$/))) return 'automobile:' + m[1];
@@ -107,8 +109,10 @@
   }
 
   var STOP = { auto: 1, usata: 1, usato: 1, usate: 1, vendita: 1, vendo: 1, annuncio: 1, annunci: 1, km: 1, euro: 1, the: 1, con: 1, del: 1, della: 1, per: 1, in: 1, di: 1, da: 1 };
+  // "Saab 9 - 3 1.9 TiD" -> ['saab', '93', '19', 'tid']: i numeri con trattini/punti restano uniti
   function tokens(s) {
-    return strip(s).toLowerCase().split(/[^a-z0-9]+/).filter(function (w) { return w.length >= 2 && !STOP[w]; });
+    var t = strip(s).toLowerCase().replace(/(\d)\s*[-.\/]\s*(?=\d)/g, '$1');
+    return t.split(/[^a-z0-9]+/).filter(function (w) { return (w.length >= 2 || /\d/.test(w)) && !STOP[w]; });
   }
   function uniq(arr) {
     return arr.filter(function (w, i) { return arr.indexOf(w) === i; });
@@ -120,24 +124,63 @@
     var common = A.filter(function (w) { return B.indexOf(w) !== -1; }).length;
     return common / Math.min(A.length, B.length);
   }
-  function close(a, b, rel, abs) {
-    var d = Math.abs(a - b);
-    return d <= Math.max(abs || 0, rel * Math.max(a, b));
-  }
+  function rel(a, b) { return Math.abs(a - b) / Math.max(a, b); }
 
   // Punteggio 0..1: quanto è probabile che due annunci siano la stessa auto.
+  //  - prezzo e km praticamente identici (±1%) e stesso anno: è lei, anche se i titoli sono scritti diversi
+  //  - prezzo ±5%, km ±2%, stesso anno e titolo simile: probabilmente lei (ritocco di prezzo tra un sito e l'altro)
+  //  - senza km: serve prezzo quasi uguale, stesso anno e titolo molto simile
   function sameCar(a, b) {
     if (!a.price || !b.price) return 0;
-    if (!close(a.price, b.price, 0.05, 100)) return 0;
     if (a.year && b.year && a.year !== b.year) return 0;
-    var ov = (a.title && b.title) ? overlap(a.title, b.title) : 0.5;
-    if (a.km && b.km) {
-      if (!close(a.km, b.km, 0.02, 2000)) return 0;
-      return ov >= 0.25 ? 0.6 + ov * 0.4 : 0;
+    var ta = a.title || '', tb = b.title || '';
+    var ov = ta && tb ? overlap(ta, tb) : 0.5;      // 0 = titoli senza niente in comune (auto diverse)
+    var pd = rel(a.price, b.price);
+    var kmA = a.km >= 1000 ? a.km : 0, kmB = b.km >= 1000 ? b.km : 0;
+    if (kmA && kmB) {
+      var kd = rel(kmA, kmB);
+      if (pd <= 0.01 && kd <= 0.01 && (a.year || b.year) && ov > 0) return 0.9;
+      if (pd <= 0.05 && kd <= 0.02 && ov >= 0.25) return 0.6 + ov * 0.4;
+      return 0;
     }
-    // Senza km serve più somiglianza nel titolo e lo stesso anno.
-    if (a.year && b.year && ov >= 0.5) return 0.4 + ov * 0.3;
+    if (a.year && b.year && pd <= 0.01 && ov >= 0.6) return 0.55;
+    // regola larga solo se i km non li conosciamo proprio (le auto nuove a 0 km si somigliano tutte)
+    var known = function (v) { return v !== null && v !== undefined && v !== ''; };
+    if (a.year && b.year && pd <= 0.05 && ov >= 0.5 && !known(a.km) && !known(b.km)) return 0.4 + ov * 0.3;
     return 0;
+  }
+
+  // Unisce annunci della stessa auto: ne resta uno, gli altri finiscono in "also" (sito, link, prezzo).
+  // Sullo stesso sito unisce solo se prezzo e km sono identici (concessionario che ripubblica).
+  function mergeListings(existing, incoming) {
+    var list = existing.slice();
+    var keys = {};
+    list.forEach(function (x) {
+      keys[x.key || listingKey(x.url)] = 1;
+      (x.also || []).forEach(function (o) { keys[listingKey(o.url)] = 1; });
+    });
+    incoming.forEach(function (inc) {
+      var k = inc.key || listingKey(inc.url);
+      if (keys[k]) return;
+      keys[k] = 1;
+      var probe = { title: inc.title + ' ' + (inc.version || ''), price: inc.price, km: inc.km, year: inc.year };
+      var twin = null;
+      for (var i = 0; i < list.length && !twin; i++) {
+        var o = list[i];
+        var score = sameCar({ title: o.title + ' ' + (o.version || ''), price: o.price, km: o.km, year: o.year }, probe);
+        if (score <= 0.5) continue;
+        if (o.site === inc.site && !(o.price === inc.price && o.km === inc.km && o.km >= 1000)) continue;
+        twin = o;
+      }
+      if (twin) {
+        twin.also = (twin.also || []).concat([{ site: inc.site, url: inc.url, price: inc.price }]);
+        if (!twin.image && inc.image) twin.image = inc.image;
+        ['km', 'year', 'cv', 'fuel', 'gear', 'city', 'posted'].forEach(function (f) { if (!twin[f] && inc[f]) twin[f] = inc[f]; });
+      } else {
+        list.push(Object.assign({}, inc, { key: k, also: (inc.also || []).slice() }));
+      }
+    });
+    return list;
   }
 
   function findDuplicate(list, item) {
@@ -237,7 +280,7 @@
     encodeJson: encodeJson, decodeJson: decodeJson,
     extractUrl: extractUrl, detectSite: detectSite, listingKey: listingKey, titleFromUrl: titleFromUrl,
     parseDetails: parseDetails, sameCar: sameCar, findDuplicate: findDuplicate, mergeBoards: mergeBoards,
-    encodeBoard: encodeBoard, decodeBoard: decodeBoard, overlap: overlap
+    encodeBoard: encodeBoard, decodeBoard: decodeBoard, overlap: overlap, mergeListings: mergeListings
   };
   root.CA_DEDUP = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

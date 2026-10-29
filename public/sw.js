@@ -1,8 +1,8 @@
 /* Service worker: fa funzionare l'app anche offline (i siti di annunci ovviamente no). */
-var CACHE = 'cacciauto-v2';
+var CACHE = 'cacciauto-v4';
 var FILES = [
   './', 'index.html', 'css/style.css',
-  'js/data.js', 'js/sites.js', 'js/parse.js', 'js/dedup.js', 'js/app.js',
+  'js/data.js', 'js/sites.js', 'js/dedup.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'
 ];
 

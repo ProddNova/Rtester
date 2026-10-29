@@ -1,35 +1,35 @@
-/* CacciAuto - interfaccia. Gli annunci arrivano dal server (/api/search), la bacheca resta sul telefono. */
+/* CacciAuto - interfaccia.
+ * Pagine (nell'indirizzo dopo #): /  ricerca · /risultati · /annuncio?u=LINK · /salvati
+ * Annunci, dettagli e salvati arrivano dal server; sul telefono restano solo comodità
+ * (ultima ricerca, annunci già visti, nascosti). */
 (function () {
   'use strict';
-  var D = window.CA_DATA, S = window.CA_SITES, P = window.CA_PARSE, X = window.CA_DEDUP;
+  var D = window.CA_DATA, S = window.CA_SITES, X = window.CA_DEDUP;
   var $ = function (id) { return document.getElementById(id); };
-  var STORE_KEY = 'cacciauto.v2';
-  var SITE_NAMES = { autoscout: 'AutoScout24', autosupermarket: 'AutoSuperMarket', automobile: 'Automobile.it', subito: 'Subito', facebook: 'Marketplace', ilparking: 'ilParking' };
-  var SITE_SHORT = { autoscout: 'AS24', autosupermarket: 'ASM', automobile: 'AM.it', subito: 'Subito', facebook: 'FB' };
 
-  // ---------------------------------------------------------------- stato
-  var EMPTY = { q: '', make: '', model: '', kw: '', pmin: '', pmax: '', ymin: '', ymax: '', kmmax: '', fuel: '', gear: '', body: '', cvmin: '', cvmax: '', region: '', europe: false, sort: 'rilevanza' };
-  var state = { search: clone(EMPTY), board: [], names: { a: 'Io', b: 'Socio' }, me: 'a', boardSort: 'nuovi' };
-  var results = { items: [], page: 0, hasMore: false, loading: false, sig: '' };
+  var SITE_NAMES = { autoscout: 'AutoScout24', autosupermarket: 'AutoSuperMarket', automobile: 'Automobile.it', trovit: 'Trovit', subito: 'Subito', facebook: 'Marketplace', ilparking: 'ilParking' };
+  var SITE_SHORT = { autoscout: 'AS24', autosupermarket: 'ASM', automobile: 'AM.it', trovit: 'Trovit', subito: 'Subito', facebook: 'FB', ilparking: 'ilParking' };
+  var DEAL = ['Molto basso', 'Affare', 'Buon prezzo', 'Nella media', 'Un po\' caro', 'Caro', 'Molto caro'];
+  var EMPTY = { make: '', model: '', kw: '', pmin: '', pmax: '', ymin: '', ymax: '', kmmin: '', kmmax: '', fuel: '', gear: '', body: '', seller: '', cvmin: '', cvmax: '', region: '', europe: false, sort: 'rilevanza' };
+  var FORM_FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region'];
 
-  function clone(o) { return JSON.parse(JSON.stringify(o)); }
-  function load() {
-    try {
-      var saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
-      if (!saved) {
-        // migrazione dalla prima versione
-        var old = JSON.parse(localStorage.getItem('cacciauto.v1') || 'null');
-        if (old) saved = { board: old.board || [], names: old.names, me: old.me };
-      }
-      if (saved) Object.keys(state).forEach(function (k) { if (saved[k] !== undefined) state[k] = saved[k]; });
-      state.search = Object.assign(clone(EMPTY), state.search);
-    } catch (e) { /* storage non disponibile */ }
-  }
-  var saveTimer;
-  function save() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function () { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* pazienza */ } }, 150);
-  }
+  // ---------------------------------------------------------------- memoria locale (solo comodità)
+  function lget(k, def) { try { var v = localStorage.getItem('ca3.' + k); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+  function lset(k, v) { try { localStorage.setItem('ca3.' + k, JSON.stringify(v)); } catch (e) { /* pieno o bloccato */ } }
+
+  var state = {
+    search: Object.assign({}, EMPTY, lget('search', {})),
+    seen: lget('seen', {}),          // chiave -> quando l'abbiamo visto la prima volta
+    hidden: lget('hidden', {}),      // annunci nascosti
+    visited: lget('visited', {}),    // annunci aperti
+    recent: lget('recent', []),
+    saved: [], savedLoaded: false, persistent: true,
+    searches: [],
+    showHidden: false
+  };
+  var hadSeen = Object.keys(state.seen).length > 0;
+  var results = { sig: '', items: [], page: 0, hasMore: false, loading: false, sources: [], links: [] };
+  var byUrl = {};                    // link -> annuncio dalla lista (per aprire il dettaglio subito)
 
   // ---------------------------------------------------------------- utilità
   function h(tag, attrs, kids) {
@@ -44,159 +44,219 @@
     (kids || []).forEach(function (c) { if (c !== null && c !== undefined && c !== '') el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
     return el;
   }
-  function buzz(ms) { try { if (navigator.vibrate) navigator.vibrate(ms || 8); } catch (e) { /* niente */ } }
   var toastTimer;
-  function toast(msg, ms, onClick) {
+  function toast(msg, ms) {
     var t = $('toast');
     t.textContent = msg;
-    t.onclick = onClick || null;
     t.classList.add('show');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, ms || 2200);
   }
   function dots(n) { return String(Math.round(Number(n))).replace(/\B(?=(\d{3})+(?!\d))/g, '.'); }
-  function eur(n) { return n ? dots(n) + ' €' : ''; }
+  function eur(n) { return n ? dots(n) + ' €' : 'Prezzo n.d.'; }
   function kmf(n) { return n || n === 0 ? dots(n) + ' km' : ''; }
   function int(v) { var n = parseInt(v, 10); return isNaN(n) || n <= 0 ? '' : n; }
   function kshort(n) { n = Number(n); return n >= 1000 ? String(Math.round(n / 100) / 10).replace('.', ',') + 'k' : String(n); }
   function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
   function labelOf(list, k) { var x = list.filter(function (i) { return i.k === k; })[0]; return x ? x.n : k; }
-
-  // ---------------------------------------------------------------- ricerca: testo e filtri
-  var lastExtras = {};
-  function applyQuery(text) {
-    var r = P.parseQuery(text);
-    var s = state.search;
-    s.q = text; s.make = r.make; s.model = r.model; s.kw = r.kw;
-    ['fuel', 'gear', 'body', 'pmax'].forEach(function (f) {
-      if (r[f]) s[f] = String(r[f]);
-      else if (lastExtras[f] && String(s[f]) === String(lastExtras[f])) s[f] = '';
-    });
-    lastExtras = { fuel: r.fuel, gear: r.gear, body: r.body, pmax: r.pmax };
+  function ago(t) {
+    if (!t) return '';
+    var d = Math.floor((Date.now() - t) / 86400000);
+    if (d <= 0) return 'oggi';
+    if (d === 1) return 'ieri';
+    if (d < 60) return d + ' giorni fa';
+    return Math.round(d / 30) + ' mesi fa';
   }
-
-  function activeCount() {
-    var s = state.search, n = 0;
-    ['pmin', 'pmax', 'ymin', 'ymax', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'region'].forEach(function (k) { if (s[k]) n++; });
-    if (s.europe) n++;
-    return n;
-  }
-
-  // Chip dei filtri attivi (tocca = togli)
-  function renderChips() {
-    var s = state.search, box = $('chips');
-    box.innerHTML = '';
-    function chip(label, clear) {
-      box.appendChild(h('button', { class: 'chip on', type: 'button', on: { click: function () { buzz(); clear(); syncText(); runSearch(); } } }, [label, h('span', { class: 'x', text: '✕' })]));
-    }
-    if (s.make) chip(s.make + (s.model ? ' ' + s.model : ''), function () { s.make = ''; s.model = ''; s.q = s.kw; });
-    if (s.kw) chip('"' + s.kw + '"', function () { s.kw = ''; s.q = (s.make + ' ' + s.model).trim().toLowerCase(); });
-    if (int(s.pmin) || int(s.pmax)) chip((int(s.pmin) ? kshort(s.pmin) : '0') + '–' + (int(s.pmax) ? kshort(s.pmax) : '∞') + ' €', function () { s.pmin = ''; s.pmax = ''; });
-    if (int(s.ymin) || int(s.ymax)) chip((s.ymin || '…') + '–' + (s.ymax || 'oggi'), function () { s.ymin = ''; s.ymax = ''; });
-    if (int(s.kmmax)) chip('≤ ' + kshort(s.kmmax) + ' km', function () { s.kmmax = ''; });
-    if (s.fuel) chip(labelOf(D.FUELS, s.fuel), function () { s.fuel = ''; });
-    if (s.gear) chip(labelOf(D.GEARS, s.gear), function () { s.gear = ''; });
-    if (s.body) chip(labelOf(D.BODIES, s.body), function () { s.body = ''; });
-    if (int(s.cvmin) || int(s.cvmax)) chip((s.cvmin || '0') + '–' + (s.cvmax || '∞') + ' CV', function () { s.cvmin = ''; s.cvmax = ''; });
-    if (s.region) chip(labelOf(D.REGIONS.map(function (r) { return { k: r.k, n: r.n }; }), s.region), function () { s.region = ''; });
-    if (s.europe) chip('+ estero', function () { s.europe = false; });
-    var n = activeCount();
-    $('filterCount').hidden = !n;
-    $('filterCount').textContent = n;
-  }
-
-  function syncText() {
-    $('q').value = state.search.q || '';
-    $('clearQ').hidden = !state.search.q;
-  }
-
-  function renderSuggest() {
-    var box = $('suggest'), q = $('q').value;
-    var list = q.trim() ? P.suggest(q, 5).filter(function (x) { return !(x.make === state.search.make && x.model === state.search.model); }) : [];
-    box.innerHTML = '';
-    box.hidden = !list.length;
-    list.forEach(function (x) {
-      box.appendChild(h('button', { type: 'button', text: x.label, on: { mousedown: function (e) { e.preventDefault(); }, click: function () {
-        buzz();
-        var txt = x.label.toLowerCase() + (state.search.kw && x.model ? ' ' + state.search.kw : '');
-        $('q').value = txt;
-        applyQuery(txt);
-        box.hidden = true;
-        $('q').blur();
-        runSearch();
-      } } }));
+  function keyOf(it) { return X.listingKey(it.url); }
+  function api(path, opts) {
+    return fetch(path, opts).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) {
+        if (!r.ok) throw new Error(j.error || ('Errore ' + r.status));
+        return j;
+      });
     });
   }
+  function post(path, body) {
+    return api(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  }
 
-  // ---------------------------------------------------------------- foglio filtri
+  // ---------------------------------------------------------------- form di ricerca
+  var PRICES = [500, 1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12500, 15000, 17500, 20000, 25000, 30000, 40000, 50000, 75000, 100000, 150000];
+  var KMS = [5000, 10000, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000, 250000, 300000];
   function fillSelect(sel, list) { list.forEach(function (i) { sel.appendChild(h('option', { value: i.k, text: i.n })); }); }
-  function openFilters() {
-    var f = $('filtersForm'), s = state.search;
-    ['pmin', 'pmax', 'ymin', 'ymax', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'region'].forEach(function (k) { f.elements[k].value = s[k] || ''; });
-    f.elements.europe.checked = !!s.europe;
-    openDialog($('dlgFilters'));
-  }
-  function applyFilters() {
-    var f = $('filtersForm'), s = state.search;
-    ['pmin', 'pmax', 'ymin', 'ymax', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'region'].forEach(function (k) { s[k] = f.elements[k].value; });
-    s.europe = f.elements.europe.checked;
-    runSearch();
+
+  function buildForm() {
+    var f = $('searchForm');
+    fillSelect($('fMake'), D.MAKES.map(function (m) { return { k: m.n, n: m.n }; }));
+    fillSelect($('fFuel'), D.FUELS);
+    fillSelect($('fGear'), D.GEARS);
+    fillSelect($('fBody'), D.BODIES);
+    fillSelect($('fRegion'), D.REGIONS.map(function (r) { return { k: r.k, n: r.n }; }));
+    var thisYear = new Date().getFullYear();
+    var years = [];
+    for (var y = thisYear; y >= 1950; y--) years.push({ k: String(y), n: String(y) });
+    Array.prototype.forEach.call(f.querySelectorAll('select[data-list]'), function (sel) {
+      var t = sel.getAttribute('data-list');
+      if (t === 'year') fillSelect(sel, years);
+      if (t === 'price') fillSelect(sel, PRICES.map(function (p) { return { k: String(p), n: dots(p) + ' €' }; }));
+      if (t === 'km') fillSelect(sel, KMS.map(function (k) { return { k: String(k), n: dots(k) + ' km' }; }));
+    });
+    $('fMake').addEventListener('change', function () { fillModels($('fMake').value, ''); });
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      state.search = readForm();
+      results.sig = ''; // "Cerca" ricarica sempre
+      go('#/risultati');
+    });
+    $('btnReset').addEventListener('click', function () { writeForm(EMPTY); });
   }
 
-  // ---------------------------------------------------------------- chiamata al server
+  function fillModels(make, value) {
+    var sel = $('fModel');
+    sel.innerHTML = '';
+    sel.appendChild(h('option', { value: '', text: make ? 'Tutti i modelli' : 'Scegli prima la marca' }));
+    var mk = D.MAKES.filter(function (m) { return m.n === make; })[0];
+    sel.disabled = !mk;
+    if (mk) mk.m.forEach(function (m) { sel.appendChild(h('option', { value: m, text: m })); });
+    sel.value = value || '';
+  }
+
+  function readForm() {
+    var f = $('searchForm'), s = Object.assign({}, EMPTY, { sort: state.search.sort || 'rilevanza' });
+    FORM_FIELDS.forEach(function (k) { s[k] = String(f.elements[k].value || '').trim(); });
+    s.europe = f.elements.europe.checked;
+    // "da" più alto di "fino a": li scambiamo invece di dare zero risultati
+    [['pmin', 'pmax'], ['ymin', 'ymax'], ['kmmin', 'kmmax'], ['cvmin', 'cvmax']].forEach(function (p) {
+      if (int(s[p[0]]) && int(s[p[1]]) && int(s[p[0]]) > int(s[p[1]])) { var t = s[p[0]]; s[p[0]] = s[p[1]]; s[p[1]] = t; }
+    });
+    return s;
+  }
+
+  function writeForm(s) {
+    var f = $('searchForm');
+    FORM_FIELDS.forEach(function (k) { if (k !== 'model') f.elements[k].value = s[k] || ''; });
+    fillModels(s.make, s.model);
+    f.elements.europe.checked = !!s.europe;
+  }
+
+  function summary(s) {
+    var p = [];
+    p.push(s.make ? s.make + (s.model ? ' ' + s.model : '') : 'Tutte le marche');
+    if (s.kw) p.push('"' + s.kw + '"');
+    if (int(s.pmin) || int(s.pmax)) p.push((int(s.pmin) ? kshort(s.pmin) : '0') + '–' + (int(s.pmax) ? kshort(s.pmax) : '∞') + ' €');
+    if (int(s.ymin) || int(s.ymax)) p.push((s.ymin || '…') + '–' + (s.ymax || 'oggi'));
+    if (int(s.kmmin) || int(s.kmmax)) p.push((int(s.kmmin) ? kshort(s.kmmin) : '0') + '–' + (int(s.kmmax) ? kshort(s.kmmax) : '∞') + ' km');
+    if (s.fuel) p.push(labelOf(D.FUELS, s.fuel));
+    if (s.gear) p.push(labelOf(D.GEARS, s.gear));
+    if (s.body) p.push(labelOf(D.BODIES, s.body));
+    if (s.seller) p.push(s.seller === 'privato' ? 'Privati' : 'Concessionari');
+    if (int(s.cvmin) || int(s.cvmax)) p.push((s.cvmin || '0') + '–' + (s.cvmax || '∞') + ' CV');
+    if (s.region) p.push(labelOf(D.REGIONS.map(function (r) { return { k: r.k, n: r.n }; }), s.region));
+    if (s.europe) p.push('+ estero');
+    return p.join(' · ');
+  }
+  function compact(s) {
+    var o = {};
+    Object.keys(EMPTY).forEach(function (k) { if (s[k] && s[k] !== 'rilevanza') o[k] = s[k]; });
+    return o;
+  }
+  function signature(s) { var c = compact(s); delete c.sort; return JSON.stringify(c); }
+
+  function rememberRecent(s) {
+    var sig = signature(s);
+    state.recent = [{ s: compact(s), label: summary(s) }].concat(state.recent.filter(function (r) { return signature(Object.assign({}, EMPTY, r.s)) !== sig; })).slice(0, 8);
+    lset('recent', state.recent);
+  }
+
+  function renderSearchLists() {
+    var box = $('recentSearches');
+    box.innerHTML = '';
+    state.recent.forEach(function (r) {
+      box.appendChild(h('button', { class: 'chip plain', type: 'button', on: { click: function () { applySearch(r.s); } } }, [h('span', { text: r.label })]));
+    });
+    $('recentBox').hidden = !state.recent.length;
+    var sb = $('savedSearches');
+    sb.innerHTML = '';
+    state.searches.forEach(function (x) {
+      sb.appendChild(h('span', { class: 'chip' }, [
+        h('span', { text: '⭐ ' + x.name, style: 'cursor:pointer', on: { click: function () { applySearch(x.search); } } }),
+        h('button', { class: 'x', type: 'button', 'aria-label': 'Elimina', text: '✕', on: { click: function () { removeSearch(x); } } })
+      ]));
+    });
+    $('savedSearchesBox').hidden = !state.searches.length;
+  }
+
+  function applySearch(s) {
+    state.search = Object.assign({}, EMPTY, s);
+    writeForm(state.search);
+    go('#/risultati');
+  }
+
+  // ---------------------------------------------------------------- ricerche salvate (condivise)
+  function loadSearches() {
+    api('api/searches').then(function (j) { state.searches = j.items || []; renderSearchLists(); }).catch(function () { /* server giù */ });
+  }
+  function saveSearch() {
+    var name = h('input', { type: 'text', value: summary(state.search).slice(0, 60), maxlength: 80 });
+    dialog('Salva ricerca', [h('p', { class: 'muted', text: 'La vedranno tutti quelli che usano CacciAuto.' }), h('label', { text: 'Nome' }), name], [
+      { label: 'Salva', cta: true, run: function () {
+        post('api/searches', { action: 'add', name: name.value, search: compact(state.search) })
+          .then(function (j) { state.searches = j.items; renderSearchLists(); toast('⭐ Ricerca salvata'); })
+          .catch(function (e) { toast(e.message); });
+      } }
+    ]);
+  }
+  function removeSearch(x) {
+    dialog('Elimino "' + x.name + '"?', [h('p', { class: 'muted', text: 'Sparisce per tutti.' })], [
+      { label: 'Elimina', cta: true, run: function () {
+        post('api/searches', { action: 'remove', id: x.id }).then(function (j) { state.searches = j.items; renderSearchLists(); }).catch(function (e) { toast(e.message); });
+      } }
+    ]);
+  }
+
+  // ---------------------------------------------------------------- risultati
   var ctrl = null, slowTimer = null;
-  function apiUrl(page) {
-    var s = clone(state.search);
-    delete s.q;
-    Object.keys(s).forEach(function (k) { if (s[k] === '' || s[k] === false) delete s[k]; });
-    return 'api/search?page=' + page + '&s=' + encodeURIComponent(JSON.stringify(s));
-  }
-  function hasQuery() {
-    var s = state.search;
-    return !!(s.make || s.kw || activeCount());
-  }
+  function serverSort(s) { return { prezzo: 'prezzo', prezzo_desc: 'rilevanza', km: 'km', recenti: 'recenti' }[s] || 'rilevanza'; }
 
   function runSearch(more) {
-    save();
-    renderChips();
-    if (!hasQuery()) {
-      results = { items: [], page: 0, hasMore: false, loading: false };
-      $('resInfo').textContent = 'Scrivi un\'auto o scegli un filtro';
+    var s = state.search;
+    lset('search', s);
+    var page = more ? results.page + 1 : 1;
+    if (!more) {
+      results = { sig: signature(s) + '|' + serverSort(s.sort), items: [], page: 0, hasMore: false, loading: true, sources: [], links: [] };
+      rememberRecent(s);
+      $('results').innerHTML = '';
+      for (var i = 0; i < 6; i++) $('results').appendChild(h('div', { class: 'skel' }));
+      $('resInfo').textContent = 'Cerco su 5 siti…';
       $('sources').innerHTML = '';
       $('more').innerHTML = '';
-      renderIntro();
-      return;
     }
-    var page = more ? results.page + 1 : 1;
+    results.loading = true;
     if (ctrl) ctrl.abort();
     ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    results.loading = true;
-    if (!more) {
-      results.items = [];
-      $('results').innerHTML = '';
-      for (var i = 0; i < 5; i++) $('results').appendChild(h('div', { class: 'skel' }));
-      $('resInfo').textContent = 'Cerco su 3 siti…';
-      $('sources').innerHTML = '';
-    }
-    $('more').innerHTML = '';
-    if (more) $('more').appendChild(h('div', { class: 'skel' }));
     clearTimeout(slowTimer);
     slowTimer = setTimeout(function () { $('resInfo').textContent = 'Sveglio il server… la prima ricerca può metterci fino a un minuto'; }, 6000);
-
-    fetch(apiUrl(page), ctrl ? { signal: ctrl.signal } : undefined)
-      .then(function (r) {
-        return r.json().then(function (j) { if (!r.ok) throw new Error(j.error || ('Errore ' + r.status)); return j; });
-      })
+    var q = compact(s);
+    q.sort = serverSort(s.sort);
+    api('api/search?page=' + page + '&s=' + encodeURIComponent(JSON.stringify(q)), ctrl ? { signal: ctrl.signal } : undefined)
       .then(function (data) {
         clearTimeout(slowTimer);
         results.loading = false;
         results.page = data.page;
         results.hasMore = data.hasMore;
-        var seen = {};
-        results.items.forEach(function (x) { seen[x.key] = 1; });
-        data.items.forEach(function (x) { if (!seen[x.key]) results.items.push(x); });
         results.sources = data.sources;
         results.links = data.links;
+        var now = Date.now();
+        data.items.forEach(function (x) {
+          x.key = keyOf(x);
+          x.isNew = hadSeen && !state.seen[x.key];
+          if (!state.seen[x.key]) state.seen[x.key] = now;
+        });
+        // unisce anche con le pagine già caricate: la stessa auto non compare due volte
+        results.items = X.mergeListings(results.items, data.items);
+        results.items.forEach(function (x) { byUrl[x.url] = x; });
+        pruneSeen();
+        estimateDeals(results.items, s);
         renderResults();
       })
       .catch(function (e) {
@@ -207,124 +267,392 @@
       });
   }
 
-  function renderSources() {
-    var box = $('sources');
-    box.innerHTML = '';
-    (results.sources || []).forEach(function (s) {
-      box.appendChild(h('span', { class: s.ok ? 'ok' : 'ko', title: s.error || '' }, [s.name + (s.ok ? ' ' + s.count : ' — ' + s.error)]));
-    });
-    if (results.links && results.links.length) {
-      box.appendChild(h('span', null, ['Anche su: '].concat(results.links.map(function (l, i) {
-        return h('span', null, [h('a', { href: l.url, target: '_blank', rel: 'noopener', text: l.name + ' ↗' }), i < results.links.length - 1 ? ' · ' : '']);
-      }))));
+  function pruneSeen() {
+    var keys = Object.keys(state.seen);
+    if (keys.length > 30000) {
+      keys.sort(function (a, b) { return state.seen[a] - state.seen[b]; }).slice(0, keys.length - 25000).forEach(function (k) { delete state.seen[k]; });
     }
+    lset('seen', state.seen);
+  }
+
+  // Stima del prezzo "giusto" con gli annunci della ricerca: log(prezzo) ~ anno + km.
+  // Serve a capire al volo se un annuncio è sotto o sopra il mercato.
+  function estimateDeals(items, s) {
+    var groups = {};
+    items.forEach(function (it) {
+      var g = s.make && s.model ? 'all' : (it.title || '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
+      (groups[g] = groups[g] || []).push(it);
+    });
+    Object.keys(groups).forEach(function (g) {
+      var list = groups[g].filter(function (it) { return it.price > 300 && it.year && it.km !== null && it.km !== undefined; });
+      if (list.length < 8) return;
+      // minimi quadrati con 3 incognite: risolviamo il sistema 3x3
+      var A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
+      list.forEach(function (it) {
+        var x = [1, it.year - 2000, it.km / 100000], y = Math.log(it.price);
+        for (var i = 0; i < 3; i++) { b[i] += x[i] * y; for (var j = 0; j < 3; j++) A[i][j] += x[i] * x[j]; }
+      });
+      var c = solve3(A, b);
+      if (!c) return;
+      groups[g].forEach(function (it) {
+        if (!(it.price > 300 && it.year && it.km !== null && it.km !== undefined)) return;
+        var pred = Math.exp(c[0] + c[1] * (it.year - 2000) + c[2] * it.km / 100000);
+        if (!isFinite(pred) || pred <= 0) return;
+        it.est = Math.round(pred / 50) * 50;
+        it.dev = it.price / pred - 1;
+      });
+    });
+    items.forEach(function (it) {
+      // AutoScout24 ha già la sua valutazione di mercato: è più affidabile della nostra
+      if (typeof it.deal === 'number') { it.dealCat = it.deal; return; }
+      if (typeof it.dev !== 'number') { it.dealCat = null; return; }
+      var d = it.dev;
+      it.dealCat = d <= -0.4 ? 0 : d <= -0.15 ? 1 : d <= -0.06 ? 2 : d < 0.08 ? 3 : d < 0.18 ? 4 : d < 0.35 ? 5 : 6;
+    });
+  }
+  function solve3(A, b) {
+    var m = A.map(function (r, i) { return r.concat([b[i]]); });
+    for (var i = 0; i < 3; i++) {
+      var p = i;
+      for (var r = i + 1; r < 3; r++) if (Math.abs(m[r][i]) > Math.abs(m[p][i])) p = r;
+      if (Math.abs(m[p][i]) < 1e-9) return null;
+      var t = m[i]; m[i] = m[p]; m[p] = t;
+      for (var r2 = 0; r2 < 3; r2++) {
+        if (r2 === i) continue;
+        var f = m[r2][i] / m[i][i];
+        for (var k = i; k < 4; k++) m[r2][k] -= f * m[i][k];
+      }
+    }
+    return [m[0][3] / m[0][0], m[1][3] / m[1][1], m[2][3] / m[2][2]];
+  }
+
+  function sorted(items) {
+    var s = state.search.sort, list = items.slice(), BIG = 1e12;
+    var devOf = function (it) {
+      if (typeof it.dev === 'number') return it.dev;
+      return typeof it.dealCat === 'number' ? [0.5, -0.2, -0.1, 0, 0.1, 0.2, 0.3][it.dealCat] : BIG;
+    };
+    if (s === 'prezzo') list.sort(function (a, b) { return (a.price || BIG) - (b.price || BIG); });
+    else if (s === 'prezzo_desc') list.sort(function (a, b) { return (b.price || 0) - (a.price || 0); });
+    else if (s === 'km') list.sort(function (a, b) { return (a.km === null ? BIG : a.km) - (b.km === null ? BIG : b.km); });
+    else if (s === 'anno') list.sort(function (a, b) { return (b.year || 0) - (a.year || 0); });
+    else if (s === 'affari') list.sort(function (a, b) { return devOf(a) - devOf(b); });
+    return list;
   }
 
   function renderResults() {
     var box = $('results');
     box.innerHTML = '';
-    var n = results.items.length;
+    var visible = results.items.filter(function (x) { return state.showHidden || !state.hidden[x.key]; });
+    var nHidden = results.items.length - visible.length;
     var dupes = results.items.filter(function (x) { return x.also && x.also.length; }).length;
-    $('resInfo').textContent = n ? n + ' annunci' + (dupes ? ' · ' + dupes + ' doppioni uniti' : '') : 'Nessun annuncio';
+    var nNew = results.items.filter(function (x) { return x.isNew; }).length;
+    $('resInfo').textContent = results.items.length
+      ? results.items.length + ' annunci' + (nNew ? ' · ' + nNew + ' nuovi' : '') + (dupes ? ' · ' + dupes + ' doppioni uniti' : '')
+      : 'Nessun annuncio';
     renderSources();
-    if (!n) {
-      box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Niente con questi filtri' }), 'Prova ad allargare budget, anni o km, oppure guarda sugli altri siti qui sopra.']));
+    if (nHidden || state.showHidden) {
+      box.appendChild(h('div', { class: 'hidden-note' }, [
+        nHidden ? nHidden + ' nascosti · ' : '',
+        h('button', { type: 'button', text: state.showHidden ? 'nascondi di nuovo' : 'mostrali', on: { click: function () { state.showHidden = !state.showHidden; renderResults(); } } })
+      ]));
     }
-    results.items.forEach(function (it) { box.appendChild(adCard(it)); });
+    if (!visible.length) {
+      box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Niente con questi filtri' }), 'Allarga budget, anni o km. Oppure prova sui siti qui sopra.']));
+    }
+    sorted(visible).forEach(function (it) { box.appendChild(adCard(it)); });
     var more = $('more');
     more.innerHTML = '';
-    if (results.hasMore) more.appendChild(h('button', { class: 'sbtn ghost', type: 'button', text: 'Carica altri', on: { click: function () { runSearch(true); } } }));
+    if (results.hasMore) more.appendChild(h('button', { class: 'sbtn ghost', type: 'button', text: 'Carica altri', on: { click: function () { loadMore(); } } }));
+  }
+
+  function loadMore() {
+    if (results.loading || !results.hasMore) return;
+    $('more').innerHTML = '';
+    $('more').appendChild(h('div', { class: 'skel' }));
+    runSearch(true);
+  }
+
+  function renderSources() {
+    var box = $('sources');
+    box.innerHTML = '';
+    (results.sources || []).forEach(function (s) {
+      var cls = s.ok ? 'ok' : s.skipped ? 'skip' : 'ko';
+      box.appendChild(h('span', { class: cls, title: s.error || '' }, [s.name + (s.ok ? ' ' + s.count : ' (' + s.error + ')')]));
+    });
+    if (results.links && results.links.length) {
+      box.appendChild(h('span', null, ['Cerca anche su: '].concat(results.links.map(function (l, i) {
+        return h('span', null, [h('a', { href: l.url, target: '_blank', rel: 'noopener', text: l.name + ' ↗' }), i < results.links.length - 1 ? ' · ' : '']);
+      }))));
+    }
   }
 
   function renderOffline(msg) {
-    $('resInfo').textContent = 'Server non raggiungibile';
+    $('resInfo').textContent = 'Non riesco a caricare gli annunci';
     $('sources').innerHTML = '';
     $('more').innerHTML = '';
     var box = $('results');
     box.innerHTML = '';
-    var links = S.plan(state.search).map(function (p) { return h('a', { class: 'chip', href: p.url, target: '_blank', rel: 'noopener', text: p.site.name + ' ↗' }); });
+    var links = S.plan(state.search).filter(function (p) { return p.site.id !== 'ilparking'; }).map(function (p) {
+      return h('a', { class: 'chip plain', href: p.url, target: '_blank', rel: 'noopener', text: p.site.name + ' ↗' });
+    });
     box.appendChild(h('div', { class: 'empty' }, [
-      h('b', { text: msg && !/fetch|network|json/i.test(msg) ? msg : 'Non riesco a caricare gli annunci' }),
-      'Se hai aperto il file direttamente o il server dorme, riprova tra poco. Intanto puoi aprire i siti già filtrati:',
-      h('div', { class: 'links' }, links)
+      h('b', { text: msg && !/fetch|network|load/i.test(msg) ? msg : 'Server non raggiungibile' }),
+      'Riprova tra poco (se il server dormiva si sta svegliando). Intanto puoi aprire i siti già filtrati:',
+      h('div', { class: 'chips' }, links),
+      h('div', { class: 'chips' }, [h('button', { class: 'sbtn', type: 'button', text: 'Riprova', on: { click: function () { runSearch(); } } })])
     ]));
   }
 
-  function renderIntro() {
-    var box = $('results');
-    box.innerHTML = '';
-    box.appendChild(h('div', { class: 'empty' }, [
-      h('b', { text: 'Che auto cerchiamo stasera?' }),
-      'Scrivi marca e modello, anche a modo tuo: "golf gti", "bmw 330", "panda 4x4 metano sotto 5k". Oppure tira la 🎲.'
-    ]));
+  function dealBadge(it) {
+    if (typeof it.dealCat !== 'number') return null;
+    var txt = DEAL[it.dealCat];
+    if (typeof it.dev === 'number' && typeof it.deal !== 'number' && it.dealCat !== 3) txt += ' ' + (it.dev > 0 ? '+' : '−') + Math.abs(Math.round(it.dev * 100)) + '%';
+    return h('span', { class: 'deal d' + it.dealCat, text: txt });
   }
 
-  // ---------------------------------------------------------------- card annuncio
-  function boardKeyOf(it) { return X.listingKey(it.url); }
-  function inBoard(it) {
-    var k = boardKeyOf(it);
-    return state.board.some(function (b) { return b.key === k || (b.alts || []).some(function (u) { return X.listingKey(u) === k; }); });
+  function isSaved(it) {
+    var k = keyOf(it);
+    return state.saved.some(function (x) { return x.key === k; });
+  }
+
+  function starBtn(it) {
+    var on = isSaved(it);
+    var b = h('button', { class: 'star' + (on ? ' on' : ''), type: 'button', 'aria-label': on ? 'Togli dai salvati' : 'Salva', text: on ? '★' : '☆' });
+    b.addEventListener('click', function (e) {
+      e.preventDefault(); e.stopPropagation();
+      toggleSave(it).then(function () {
+        var now = isSaved(it);
+        b.classList.toggle('on', now);
+        b.textContent = now ? '★' : '☆';
+      });
+    });
+    return b;
   }
 
   function adCard(it) {
-    var meta = [kmf(it.km), it.year, cap(it.fuel), it.cv ? it.cv + ' CV' : ''].filter(Boolean).join(' · ');
-    var star = h('button', { class: 'star' + (inBoard(it) ? ' on' : ''), type: 'button', 'aria-label': 'Salva in bacheca', text: inBoard(it) ? '★' : '☆' });
-    star.addEventListener('click', function (e) {
-      e.preventDefault(); e.stopPropagation();
-      toggleSave(it);
-      var on = inBoard(it);
-      star.classList.toggle('on', on);
-      star.textContent = on ? '★' : '☆';
-    });
+    var meta = [kmf(it.km), it.year, cap(it.fuel), it.cv ? it.cv + ' CV' : '', it.gear === 'automatico' ? 'Aut.' : ''].filter(Boolean).join(' · ');
     var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
     if (it.note) tags.push(h('span', { class: 'tag warn', text: it.note }));
-    return h('a', { class: 'ad', href: it.url, target: '_blank', rel: 'noopener' }, [
+    if (it.postedLabel) tags.push(h('span', { text: it.postedLabel }));
+    if (it.city) tags.push(h('span', { class: 'city', text: it.city }));
+    var href = '#/annuncio?u=' + encodeURIComponent(it.url);
+    return h('a', { class: 'ad' + (state.visited[it.key] ? ' visited' : ''), href: href }, [
       h('div', { class: 'ph' }, [
         it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.remove(); } } }) : '🚗',
+        it.isNew ? h('span', { class: 'new', text: 'NUOVO' }) : null,
         it.photos > 1 ? h('span', { class: 'n', text: '📷 ' + it.photos }) : null
       ]),
       h('div', { class: 'bd' }, [
         h('div', { class: 'tt' }, [it.title, it.version ? h('small', { text: ' · ' + it.version }) : null]),
-        h('div', { class: 'pr', text: eur(it.price) }),
+        h('div', { class: 'prow' }, [h('span', { class: 'pr', text: eur(it.price) }), dealBadge(it)]),
         meta ? h('div', { class: 'mt', text: meta }) : null,
-        h('div', { class: 'ft' }, tags.concat([it.city ? h('span', { class: 'city', text: it.city }) : null]))
+        h('div', { class: 'ft' }, tags)
       ]),
-      star
+      starBtn(it)
     ]);
   }
 
-  // ---------------------------------------------------------------- bacheca
-  function toggleSave(it) {
-    buzz(12);
-    var k = boardKeyOf(it);
-    var idx = -1;
-    state.board.forEach(function (b, i) { if (b.key === k) idx = i; });
-    if (idx >= 0) {
-      state.board.splice(idx, 1);
-      toast('Tolta dalla bacheca');
-    } else {
-      var item = {
-        url: it.url, key: k, site: it.site, title: it.title + (it.version ? ' ' + it.version : ''),
-        price: it.price || null, km: it.km || null, year: it.year || null, image: it.image || '',
-        city: it.city || '', fuel: it.fuel || '', cv: it.cv || null,
-        alts: (it.also || []).map(function (a) { return a.url; }),
-        addedBy: state.me, addedAt: Date.now(), votes: { a: null, b: null }, note: ''
-      };
-      item.votes[state.me] = { v: 1, t: Date.now() };
-      var d = X.findDuplicate(state.board, item);
-      if (d && d.type === 'probable') item.dupOf = d.item.key;
-      state.board.unshift(item);
-      toast(d ? '⭐ Salvata (sembra uguale a una già in bacheca)' : '⭐ Salvata in bacheca');
-    }
-    save();
-    renderBoardCount();
+  // infinito: quando arrivi in fondo carica la pagina dopo
+  function watchBottom() {
+    if (!('IntersectionObserver' in window)) return;
+    new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting && $('view-results').classList.contains('active')) loadMore();
+    }, { rootMargin: '600px' }).observe($('more'));
   }
 
-  function renderBoardCount() {
-    $('boardCount').hidden = !state.board.length;
-    $('boardCount').textContent = state.board.length;
+  // ---------------------------------------------------------------- dettaglio annuncio
+  var adReq = 0;
+  function showAd(url) {
+    var base = byUrl[url] || state.saved.filter(function (x) { return x.url === url; })[0] || { url: url, title: X.titleFromUrl(url) || 'Annuncio', site: X.detectSite(url).id };
+    var key = X.listingKey(url);
+    state.visited[key] = Date.now();
+    var vk = Object.keys(state.visited);
+    if (vk.length > 5000) vk.slice(0, vk.length - 4000).forEach(function (k) { delete state.visited[k]; });
+    lset('visited', state.visited);
+    var view = $('view-ad');
+    view.innerHTML = '';
+    view.appendChild(renderAd(base, null, true));
+    $('topTitle').textContent = base.title || '';
+    var my = ++adReq;
+    api('api/ad?url=' + encodeURIComponent(url)).then(function (r) {
+      if (my !== adReq) return;
+      view.innerHTML = '';
+      if (r.external) { view.appendChild(renderAd(base, null, false, r.url)); return; }
+      var ad = r.ad ? Object.assign({ url: r.url, site: r.site }, r.ad) : null;
+      if (ad) { ad.also = base.also; ad.dev = base.dev; ad.est = base.est; ad.deal = base.deal; ad.dealCat = base.dealCat; }
+      view.appendChild(renderAd(base, ad, false, r.url, r.removed));
+      if (r.removed || (ad && ad.price)) refreshSavedSoon();
+    }).catch(function (e) {
+      if (my !== adReq) return;
+      view.innerHTML = '';
+      view.appendChild(renderAd(base, null, false, url, false, e.message));
+    });
+  }
+
+  function spec(label, value) {
+    if (value === null || value === undefined || value === '') return null;
+    return h('div', null, [h('small', { text: label }), h('b', { text: String(value) })]);
+  }
+
+  function renderAd(base, ad, loading, finalUrl, removed, error) {
+    var a = ad || base;
+    var site = (ad && ad.site) || base.site;
+    var openUrl = finalUrl || base.url;
+    var openSite = X.detectSite(openUrl);
+    var photos = ad && ad.photos && ad.photos.length ? ad.photos : (base.image ? [base.image] : []);
+    var wrap = h('div');
+
+    if (photos.length) {
+      var gal = h('div', { class: 'gallery' }, photos.map(function (p, i) {
+        return h('img', { src: p, alt: '', loading: i < 2 ? 'eager' : 'lazy', referrerpolicy: 'no-referrer', decoding: 'async' });
+      }));
+      var counter = h('span', { class: 'gal-count', text: '1 / ' + photos.length });
+      gal.addEventListener('scroll', function () {
+        var i = Math.round(gal.scrollLeft / Math.max(1, gal.clientWidth * (window.innerWidth >= 700 ? 0.8 : 1)));
+        counter.textContent = Math.min(photos.length, i + 1) + ' / ' + photos.length;
+      }, { passive: true });
+      wrap.appendChild(h('div', { class: 'gal-wrap' }, [gal, photos.length > 1 ? counter : null]));
+    }
+
+    wrap.appendChild(h('div', { class: 'ad-head' }, [
+      h('h1', { text: a.title || 'Annuncio' }),
+      a.version ? h('div', { class: 'ver', text: a.version }) : null
+    ]));
+    wrap.appendChild(h('div', { class: 'ad-price' }, [
+      h('span', { class: 'pr', text: eur(a.price) }),
+      dealBadge(Object.assign({}, base, ad && ad.market && typeof ad.market.deal === 'number' ? { deal: ad.market.deal, dealCat: ad.market.deal } : {})),
+      ad && ad.negotiable ? h('span', { class: 'tag priv', text: 'trattabile' }) : null,
+      removed ? h('span', { class: 'gone', text: 'Non più disponibile' }) : null
+    ]));
+    if (ad && ad.market && ad.market.median) wrap.appendChild(h('div', { class: 'ad-note', text: 'Valutazione ' + ad.market.source + ': prezzo medio di mercato ' + eur(ad.market.median) }));
+    if (base.est) wrap.appendChild(h('div', { class: 'ad-note', text: 'Stima sugli annunci di questa ricerca (anno e km): ' + eur(base.est) }));
+    var savedItem = state.saved.filter(function (x) { return x.key === X.listingKey(base.url); })[0];
+    if (savedItem && savedItem.history && savedItem.history.length > 1) {
+      wrap.appendChild(h('div', { class: 'ad-note', text: 'Storico prezzo: ' + savedItem.history.map(function (x) { return eur(x.p); }).join(' → ') }));
+    }
+    if (ad && ad.posted) wrap.appendChild(h('div', { class: 'ad-note', text: 'Online da ' + ago(ad.posted).replace(' fa', '') + ' (' + new Date(ad.posted).toLocaleDateString('it-IT') + ')' }));
+    else if (base.postedLabel) wrap.appendChild(h('div', { class: 'ad-note', text: 'Pubblicato ' + base.postedLabel }));
+
+    var saveBtn = h('button', { class: 'sbtn ghost', type: 'button', text: isSaved(base) ? '★ Salvato' : '☆ Salva', on: { click: function () {
+      toggleSave(Object.assign({}, base, ad ? { image: (ad.photos || [])[0] || base.image, price: ad.price || base.price, km: ad.km || base.km, year: ad.year || base.year, cv: ad.cv || base.cv } : {})).then(function () {
+        saveBtn.textContent = isSaved(base) ? '★ Salvato' : '☆ Salva';
+      });
+    } } });
+    var siteName = SITE_NAMES[openSite.id] || openSite.name;
+    wrap.appendChild(h('div', { class: 'ad-actions' }, [
+      h('a', { class: 'sbtn wide', href: openUrl, target: '_blank', rel: 'noopener', text: 'Apri su ' + siteName + ' ↗' }),
+      saveBtn,
+      (ad && ad.seller && ad.seller.phones && ad.seller.phones[0]) ? h('a', { class: 'sbtn ghost', href: 'tel:' + ad.seller.phones[0].tel, text: '📞 Chiama' }) : null,
+      (ad && ad.seller && ad.seller.whatsapp) ? h('a', { class: 'sbtn ghost', href: 'https://wa.me/' + String(ad.seller.whatsapp).replace(/\D/g, ''), target: '_blank', rel: 'noopener', text: 'WhatsApp' }) : null
+    ]));
+
+    if (loading) {
+      wrap.appendChild(h('div', { class: 'skel' }));
+      return wrap;
+    }
+    if (error) wrap.appendChild(h('div', { class: 'alert', text: 'Non riesco a leggere i dettagli (' + error + '). Puoi aprire l\'annuncio sul sito.' }));
+    if (!ad && !error && !removed) {
+      wrap.appendChild(h('div', { class: 'alert', text: siteName + ' non si lascia leggere da CacciAuto: foto e descrizione complete le trovi sul sito.' }));
+      if (base.snippet) wrap.appendChild(h('div', { class: 'section desc', text: base.snippet }));
+    }
+
+    var specs = h('div', { class: 'specs' }, [
+      spec('Chilometri', kmf(a.km)),
+      spec('Immatricolazione', (ad && ad.reg) || a.year),
+      spec('Alimentazione', (ad && ad.fuelLabel) || cap(a.fuel)),
+      spec('Cambio', (ad && ad.gearLabel) || cap(a.gear)),
+      spec('Potenza', a.cv ? a.cv + ' CV' + (ad && ad.kw ? ' (' + ad.kw + ' kW)' : '') : ''),
+      spec('Cilindrata', ad && ad.cc ? dots(ad.cc) + ' cm³' : ''),
+      spec('Carrozzeria', ad && ad.body),
+      spec('Colore', ad && ad.color),
+      spec('Interni', ad && ad.interior),
+      spec('Porte / posti', ad && (ad.doors || ad.seats) ? (ad.doors || '–') + ' / ' + (ad.seats || '–') : ''),
+      spec('Trazione', ad && ad.drive),
+      spec('Classe emissioni', ad && ad.emission),
+      spec('Consumo', ad && ad.consumption),
+      spec('Proprietari', ad && ad.owners),
+      spec('Incidentata', ad && ad.accident),
+      spec('Tagliandi certificati', ad && ad.serviceBook),
+      spec('Peso', ad && ad.weight),
+      spec('Città', !ad ? base.city : '')
+    ].filter(Boolean));
+    if (specs.children.length) wrap.appendChild(specs);
+
+    if (ad && ad.seller && (ad.seller.name || ad.seller.city)) {
+      wrap.appendChild(h('div', { class: 'section card seller' }, [
+        h('h3', { text: 'Venditore' }),
+        h('div', { class: 'nm', text: [ad.seller.name, ad.seller.type].filter(function (v, i, a) { return v && a.map(function (z) { return String(z).toLowerCase(); }).indexOf(String(v).toLowerCase()) === i; }).join(' · ') }),
+        ad.seller.city ? h('div', { class: 'muted', text: '📍 ' + ad.seller.city }) : null,
+        ad.seller.phones && ad.seller.phones.length ? h('div', { class: 'btns' }, ad.seller.phones.map(function (p) {
+          return h('a', { class: 'chip plain', href: 'tel:' + p.tel, text: '📞 ' + p.label });
+        })) : null
+      ]));
+    }
+
+    if (ad && ad.description) {
+      var desc = h('div', { class: 'desc' + (ad.description.length > 600 ? ' clamp' : ''), text: ad.description });
+      var sec = h('div', { class: 'section' }, [h('h3', { text: 'Descrizione' }), desc]);
+      if (ad.description.length > 600) {
+        sec.appendChild(h('button', { class: 'link', type: 'button', text: 'Mostra tutto', on: { click: function () { desc.classList.remove('clamp'); this.remove(); } } }));
+      }
+      wrap.appendChild(sec);
+    }
+    if (ad && ad.equipment && ad.equipment.length) {
+      wrap.appendChild(h('details', { class: 'section' }, [
+        h('summary', null, [h('h3', { style: 'display:inline', text: 'Dotazioni (' + ad.equipment.length + ')' })]),
+        h('div', { class: 'equip' }, ad.equipment.map(function (x) { return h('span', { text: x }); }))
+      ]));
+    }
+    if (base.also && base.also.length) {
+      wrap.appendChild(h('div', { class: 'section' }, [h('h3', { text: 'Stessa auto anche su' }), h('div', { class: 'chips' }, base.also.map(function (o) {
+        return h('a', { class: 'chip plain', href: '#/annuncio?u=' + encodeURIComponent(o.url), text: (SITE_NAMES[o.site] || o.site) + ' · ' + eur(o.price) });
+      }))]));
+    }
+    var key = X.listingKey(base.url);
+    wrap.appendChild(h('div', { class: 'section' }, [
+      h('button', { class: 'link', type: 'button', text: state.hidden[key] ? 'Mostra di nuovo nei risultati' : '🙈 Non mi interessa (nascondi dai risultati)', on: { click: function () {
+        if (state.hidden[key]) delete state.hidden[key]; else state.hidden[key] = Date.now();
+        lset('hidden', state.hidden);
+        toast(state.hidden[key] ? 'Nascosto dai risultati' : 'Di nuovo visibile');
+        if (state.hidden[key]) history.back();
+      } } })
+    ]));
+    return wrap;
+  }
+
+  // ---------------------------------------------------------------- salvati (condivisi)
+  function loadSaved() {
+    return api('api/saved').then(function (j) {
+      state.saved = j.items || [];
+      state.persistent = j.persistent !== false;
+      state.savedLoaded = true;
+      renderSavedCount();
+      if (currentView() === 'saved') renderSaved();
+    }).catch(function () { /* server giù: riproveremo */ });
+  }
+  var refreshTimer;
+  function refreshSavedSoon() { clearTimeout(refreshTimer); refreshTimer = setTimeout(loadSaved, 1500); }
+
+  function renderSavedCount() {
+    $('savedCount').hidden = !state.saved.length;
+    $('savedCount').textContent = state.saved.length;
+  }
+
+  function toggleSave(it) {
+    var k = keyOf(it);
+    var on = isSaved(it);
+    var req = on ? post('api/saved', { action: 'remove', key: k }) : post('api/saved', { action: 'add', item: {
+      url: it.url, title: it.title, version: it.version, price: it.price, km: it.km, year: it.year, cv: it.cv,
+      fuel: it.fuel, city: it.city, image: it.image, alts: (it.also || []).map(function (a) { return a.url; })
+    } });
+    return req.then(function (j) {
+      state.saved = j.items;
+      renderSavedCount();
+      toast(on ? 'Tolto dai salvati' : '⭐ Salvato (lo vedono tutti)');
+    }).catch(function (e) { toast('Non salvato: ' + e.message); });
   }
 
   function addByLink() {
@@ -334,358 +662,202 @@
     msg.hidden = true;
     if (!/^https?:\/\//i.test(url)) { msg.hidden = false; msg.textContent = 'Incolla un link valido'; return; }
     var det = X.parseDetails(raw);
-    var item = {
-      url: url, key: X.listingKey(url), site: X.detectSite(url).id, title: X.titleFromUrl(url) || X.detectSite(url).name,
-      price: det.price, km: det.km, year: det.year, image: '', addedBy: state.me, addedAt: Date.now(),
-      votes: { a: null, b: null }, note: ''
-    };
-    item.votes[state.me] = { v: 1, t: Date.now() };
-    var d = X.findDuplicate(state.board, item);
-    if (d && d.type === 'exact') { msg.hidden = false; msg.textContent = 'Già in bacheca: ' + (d.item.title || d.item.url); return; }
-    if (d) item.dupOf = d.item.key;
-    state.board.unshift(item);
-    $('addUrl').value = '';
-    save(); renderBoard(); renderBoardCount();
-    toast('⭐ Aggiunta. Tocca ✏️ per prezzo e km');
+    var item = { url: url, title: X.titleFromUrl(url), price: det.price, km: det.km, year: det.year };
+    var d = X.findDuplicate(state.saved, Object.assign({ key: X.listingKey(url) }, item));
+    if (d && d.type === 'exact') { msg.hidden = false; msg.textContent = 'Già nei salvati: ' + (d.item.title || d.item.url); return; }
+    post('api/saved', { action: 'add', item: item }).then(function (j) {
+      state.saved = j.items;
+      $('addUrl').value = '';
+      renderSavedCount(); renderSaved();
+      toast('⭐ Aggiunto');
+    }).catch(function (e) { msg.hidden = false; msg.textContent = e.message; });
   }
 
-  function score(x) { var v = x.votes || {}, s = 0; ['a', 'b'].forEach(function (k) { if (v[k]) s += v[k].v; }); return s; }
-
-  function renderWho() {
-    Array.prototype.forEach.call($('whoSeg').children, function (b) {
-      var k = b.getAttribute('data-who');
-      b.textContent = state.names[k];
-      b.classList.toggle('on', k === state.me);
-    });
+  function priceDrop(x) {
+    var hh = x.history || [];
+    return hh.length > 1 ? hh[0].p - x.price : 0;
   }
 
-  function renderBoard() {
-    var box = $('board');
-    var list = state.board.slice();
-    var srt = state.boardSort;
-    $('boardSort').value = srt;
-    if (srt === 'top') list.sort(function (a, b) { return score(b) - score(a) || b.addedAt - a.addedAt; });
-    else if (srt === 'prezzo') list.sort(function (a, b) { return (a.price || 1e12) - (b.price || 1e12); });
-    else if (srt === 'km') list.sort(function (a, b) { return (a.km || 1e12) - (b.km || 1e12); });
-    else list.sort(function (a, b) { return b.addedAt - a.addedAt; });
+  function renderSaved() {
+    var box = $('saved');
+    $('storeWarn').hidden = state.persistent;
+    $('storeWarn').textContent = '⚠️ I salvati per ora stanno in un archivio temporaneo: si cancellano quando il server si riavvia. Per renderli permanenti collega il database gratuito (istruzioni nel README, sezione "Salvati permanenti").';
+    var list = state.saved.slice();
+    var srt = $('savedSort').value;
+    if (srt === 'prezzo') list.sort(function (a, b) { return (a.price || 1e12) - (b.price || 1e12); });
+    else if (srt === 'calo') list.sort(function (a, b) { return priceDrop(b) - priceDrop(a); });
+    $('savedInfo').textContent = list.length ? list.length + ' auto' : '';
     box.innerHTML = '';
-    $('btnClear').hidden = !list.length;
+    if (!state.savedLoaded) { box.appendChild(h('div', { class: 'skel' })); return; }
     if (!list.length) {
-      box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Bacheca vuota' }), 'Tocca ☆ su un annuncio per salvarlo qui, oppure incolla un link sopra.']));
+      box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Nessun salvato' }), 'Tocca ☆ su un annuncio: lo vedranno tutti quelli che usano CacciAuto.']));
       return;
     }
-    var byKey = {};
-    state.board.forEach(function (x) { byKey[x.key] = x; });
-    list.forEach(function (x) { box.appendChild(savedCard(x, byKey)); });
+    list.forEach(function (x) { box.appendChild(savedCard(x)); });
   }
 
-  function savedCard(x, byKey) {
-    var v = x.votes || {};
+  function savedCard(x) {
+    var drop = priceDrop(x);
     var meta = [kmf(x.km), x.year, cap(x.fuel), x.cv ? x.cv + ' CV' : ''].filter(Boolean).join(' · ');
-    var dup = x.dupOf && byKey[x.dupOf];
     var tags = [h('span', { class: 'tag ' + (SITE_SHORT[x.site] ? x.site : 'altro'), text: SITE_SHORT[x.site] || X.detectSite(x.url).name })];
-    (x.alts || []).forEach(function (u) { var s = X.detectSite(u).id; tags.push(h('a', { class: 'tag ' + (SITE_SHORT[s] ? s : 'altro'), href: u, target: '_blank', rel: 'noopener', text: '+' + (SITE_SHORT[s] || s) })); });
-    if (x.addedBy) tags.push(h('span', { text: 'da ' + state.names[x.addedBy] }));
-    return h('div', { class: 'ad saved' + (score(x) >= 2 ? ' hot' : ''), 'data-key': x.key }, [
-      h('a', { class: 'ph', href: x.url, target: '_blank', rel: 'noopener' }, [x.image ? h('img', { src: x.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', on: { error: function () { this.remove(); } } }) : '🚗']),
-      h('a', { class: 'bd', href: x.url, target: '_blank', rel: 'noopener', style: 'color:inherit;text-decoration:none' }, [
-        h('div', { class: 'tt', text: x.title || x.url }),
-        x.price ? h('div', { class: 'pr', text: eur(x.price) }) : null,
+    (x.alts || []).forEach(function (u) { var s = X.detectSite(u).id; tags.push(h('span', { class: 'tag ' + (SITE_SHORT[s] ? s : 'altro'), text: '+' + (SITE_SHORT[s] || s) })); });
+    tags.push(h('span', { text: 'salvato ' + ago(x.savedAt) }));
+    if (x.city) tags.push(h('span', { class: 'city', text: x.city }));
+    var card = h('a', { class: 'ad saved', href: '#/annuncio?u=' + encodeURIComponent(x.url) }, [
+      h('div', { class: 'ph' }, [x.image ? h('img', { src: x.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', on: { error: function () { this.remove(); } } }) : '🚗']),
+      h('div', { class: 'bd' }, [
+        h('div', { class: 'tt' }, [x.title || x.url, x.version ? h('small', { text: ' · ' + x.version }) : null]),
+        h('div', { class: 'prow' }, [
+          h('span', { class: 'pr', text: eur(x.price) }),
+          drop ? h('span', { class: 'chg ' + (drop > 0 ? 'down' : 'up'), text: (drop > 0 ? '▼ ' : '▲ ') + eur(Math.abs(drop)) }) : null,
+          x.removed ? h('span', { class: 'gone', text: 'Non più disponibile' }) : null
+        ]),
         meta ? h('div', { class: 'mt', text: meta }) : null,
         h('div', { class: 'ft' }, tags)
       ]),
-      x.note ? h('div', { class: 'note', text: '📝 ' + x.note }) : null,
-      dup ? h('div', { class: 'dupnote' }, [
-        '👯 Sembra la stessa di "' + (dup.title || 'un altro annuncio') + '"',
-        h('button', { class: 'link', type: 'button', text: 'Unisci', on: { click: function () { mergeInto(x, dup); } } }),
-        h('button', { class: 'link', type: 'button', text: 'Non è lei', on: { click: function () { delete x.dupOf; save(); renderBoard(); } } })
-      ]) : null,
-      h('div', { class: 'row2' }, ['a', 'b'].map(function (k) {
-        var mine = k === state.me, val = v[k] && v[k].v;
-        return h('button', {
-          class: 'vote' + (val === 1 ? ' v1' : val === -1 ? ' v-1' : ''), type: 'button', disabled: !mine,
-          text: (val === 1 ? '🔥 ' : val === -1 ? '💀 ' : '· ') + state.names[k],
-          on: { click: function () { if (mine) cycleVote(x); } }
-        });
-      }).concat([
+      h('div', { class: 'note', text: x.note ? '📝 ' + x.note : '' }),
+      h('div', { class: 'row2' }, [
+        h('button', { class: 'link', type: 'button', text: x.note ? '✎ Modifica nota' : '✎ Aggiungi nota', on: { click: function (e) { e.preventDefault(); editNote(x); } } }),
         h('span', { class: 'sp' }),
-        h('button', { class: 'ibtn sm', type: 'button', 'aria-label': 'Modifica', text: '✏️', on: { click: function () { editItem(x); } } }),
-        h('button', { class: 'ibtn sm', type: 'button', 'aria-label': 'Elimina', text: '🗑️', on: { click: function () { removeItem(x); } } })
-      ]))
+        h('button', { class: 'link danger', type: 'button', text: 'Rimuovi', on: { click: function (e) { e.preventDefault(); removeSaved(x); } } })
+      ])
+    ]);
+    return card;
+  }
+
+  function editNote(x) {
+    var ta = h('textarea', { maxlength: 500, placeholder: 'es. passaruota da controllare, trattabile a 4.000' }, [x.note || '']);
+    dialog('Nota', [ta], [{ label: 'Salva', cta: true, run: function () {
+      post('api/saved', { action: 'note', key: x.key, note: ta.value }).then(function (j) { state.saved = j.items; renderSaved(); }).catch(function (e) { toast(e.message); });
+    } }]);
+  }
+
+  function removeSaved(x) {
+    dialog('Rimuovo dai salvati?', [h('p', { class: 'muted', text: '"' + (x.title || x.url) + '" sparisce per tutti.' })], [
+      { label: 'Rimuovi', cta: true, run: function () {
+        post('api/saved', { action: 'remove', key: x.key }).then(function (j) { state.saved = j.items; renderSavedCount(); renderSaved(); }).catch(function (e) { toast(e.message); });
+      } }
     ]);
   }
 
-  function cycleVote(item) {
-    var v = item.votes = item.votes || {};
-    var cur = v[state.me] ? v[state.me].v : 0;
-    var nxt = cur === 0 ? 1 : cur === 1 ? -1 : 0;
-    v[state.me] = { v: nxt, t: Date.now() };
-    buzz(10);
-    save(); renderBoard();
-    if (score(item) === 2) toast('🔥🔥 Piace a tutti e due!');
-  }
-
-  function mergeInto(dup, main) {
-    main.alts = main.alts || [];
-    [dup.url].concat(dup.alts || []).forEach(function (u) { if (main.alts.indexOf(u) === -1 && u !== main.url) main.alts.push(u); });
-    ['title', 'price', 'km', 'year', 'image'].forEach(function (f) { if (!main[f] && dup[f]) main[f] = dup[f]; });
-    if (dup.note) main.note = main.note ? main.note + ' · ' + dup.note : dup.note;
-    var mv = main.votes = main.votes || {}, dv = dup.votes || {};
-    ['a', 'b'].forEach(function (k) { if (dv[k] && (!mv[k] || dv[k].t > mv[k].t)) mv[k] = dv[k]; });
-    state.board = state.board.filter(function (y) { return y !== dup; });
-    save(); renderBoard(); renderBoardCount();
-    toast('Unite: un\'auto, più link');
-  }
-
-  function removeItem(x) {
-    var idx = state.board.indexOf(x);
-    state.board.splice(idx, 1);
-    state.board.forEach(function (y) { if (y.dupOf === x.key) delete y.dupOf; });
-    save(); renderBoard(); renderBoardCount();
-    toast('Tolta. Tocca qui per annullare', 4000, function () {
-      state.board.splice(idx, 0, x); save(); renderBoard(); renderBoardCount(); $('toast').classList.remove('show');
-    });
-  }
-
-  function editItem(x) {
-    var f = {};
-    function field(label, key, type) {
-      f[key] = h('input', { type: type || 'text', inputmode: type === 'number' ? 'numeric' : null, value: x[key] || '' });
-      return [h('label', { text: label }), f[key]];
-    }
-    textDialog('Modifica', [].concat(field('Titolo', 'title'), field('Prezzo €', 'price', 'number'), field('Km', 'km', 'number'), field('Anno', 'year', 'number'), field('Nota', 'note')),
-      [{ label: 'Salva', cta: true, run: function () {
-        x.title = f.title.value.trim();
-        x.price = int(f.price.value) || null; x.km = int(f.km.value) || null; x.year = int(f.year.value) || null;
-        x.note = f.note.value.trim();
-        save(); renderBoard();
-      } }]);
-  }
-
-  function editNames() {
-    var a = h('input', { type: 'text', value: state.names.a, maxlength: 16 });
-    var b = h('input', { type: 'text', value: state.names.b, maxlength: 16 });
-    textDialog('Chi siete?', [h('p', { class: 'muted', text: 'Usate gli stessi nomi su tutti e due i telefoni.' }), h('label', { text: 'Persona 1' }), a, h('label', { text: 'Persona 2' }), b],
-      [{ label: 'Salva', cta: true, run: function () {
-        state.names.a = a.value.trim() || 'Io'; state.names.b = b.value.trim() || 'Socio';
-        save(); renderWho(); renderBoard();
-      } }]);
-  }
-
-  // ---------------------------------------------------------------- condivisione
-  function share(title, text, url) {
-    if (navigator.share) { navigator.share({ title: title, text: text, url: url }).catch(function () { /* annullato */ }); return; }
-    var ta = h('textarea', { readonly: true }, [url]);
-    textDialog(title, [h('p', { text: 'Copia il link e mandalo:' }), ta], [
-      { label: 'Copia', run: function () { ta.select(); try { document.execCommand('copy'); toast('Copiato'); } catch (e) { /* niente */ } return false; } },
-      { label: 'WhatsApp', cta: true, run: function () { window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + url), '_blank', 'noopener'); } }
-    ]);
-  }
-  function baseUrl() { return location.href.split('#')[0].split('?')[0]; }
-  function shareBoard() {
-    if (!state.board.length) { toast('La bacheca è vuota'); return; }
-    var code = X.encodeBoard(state.board, state.names[state.me]);
-    share('Bacheca CacciAuto', '⭐ ' + state.board.length + ' auto dalla bacheca di ' + state.names[state.me], baseUrl() + '#b=' + code);
-  }
-  function importBoardCode(code) {
-    try {
-      var data = X.decodeBoard(code);
-      var res = X.mergeBoards(state.board, data.list);
-      state.board = res.list;
-      save(); renderBoard(); renderBoardCount();
-      var st = res.stats;
-      toast('📥 ' + st.added + ' nuove' + (st.merged ? ', ' + st.merged + ' già presenti' : '') + (st.probable ? ', ' + st.probable + ' forse doppioni' : ''), 4000);
-      return true;
-    } catch (e) { toast('Link non valido'); return false; }
+  // Ricontrolla prezzo e disponibilità di tutti i salvati (uno alla volta, piano).
+  var checking = false;
+  function checkPrices() {
+    if (checking) return;
+    var list = state.saved.filter(function (x) { return ['autoscout', 'subito', 'autosupermarket', 'automobile', 'trovit'].indexOf(x.site) !== -1; }).slice(0, 60);
+    if (!list.length) { toast('Niente da controllare'); return; }
+    checking = true;
+    var btn = $('btnCheck'), i = 0;
+    (function next() {
+      if (i >= list.length) {
+        checking = false;
+        btn.textContent = '↻ Controlla prezzi';
+        loadSaved().then(function () { toast('Prezzi aggiornati'); });
+        return;
+      }
+      btn.textContent = 'Controllo ' + (i + 1) + '/' + list.length + '…';
+      api('api/ad?url=' + encodeURIComponent(list[i].url)).catch(function () { /* salta */ }).then(function () { i++; setTimeout(next, 400); });
+    })();
   }
 
   // ---------------------------------------------------------------- dialog
-  function openDialog(dlg) { if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', ''); }
-  function bindClose(dlg) {
-    dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close(); });
-    Array.prototype.forEach.call(dlg.querySelectorAll('[data-close]'), function (b) { b.addEventListener('click', function () { dlg.close(); }); });
-  }
-  function textDialog(title, body, actions) {
-    var dlg = $('dlgText');
-    $('dlgTextTitle').textContent = title;
-    var bb = $('dlgTextBody');
+  function dialog(title, body, actions) {
+    var dlg = $('dlg');
+    $('dlgTitle').textContent = title;
+    var bb = $('dlgBody');
     bb.innerHTML = '';
     body.forEach(function (n) { bb.appendChild(n); });
-    var act = $('dlgTextActions');
+    var act = $('dlgActions');
     act.innerHTML = '';
-    (actions && actions.length ? actions : [{ label: 'Ok', cta: true }]).forEach(function (a) {
-      act.appendChild(h('button', { type: 'button', class: 'sbtn' + (a.cta ? '' : ' ghost'), text: a.label, on: { click: function () {
-        var keep = a.run && a.run() === false;
-        if (!keep) dlg.close();
-      } } }));
+    (actions || []).forEach(function (a) {
+      act.appendChild(h('button', { type: 'button', class: 'sbtn' + (a.cta ? '' : ' ghost'), text: a.label, on: { click: function () { if (a.run) a.run(); dlg.close(); } } }));
     });
-    openDialog(dlg);
-  }
-  function showHelp() {
-    textDialog('Come funziona', [
-      h('ol', null, [
-        h('li', { text: 'Scrivi l\'auto come la diresti a voce: "saab 93 diesel sotto 6k". Il resto in Filtri.' }),
-        h('li', { text: 'Gli annunci arrivano da AutoScout24, AutoSuperMarket e Automobile.it in un\'unica lista. Se la stessa auto è su più siti la vedi una volta sola, con le etichette dei siti (es. AS24 +ASM).' }),
-        h('li', { text: 'Subito, Marketplace e ilParking non si lasciano leggere: li trovi come link "Anche su", già filtrati.' }),
-        h('li', { text: 'Tocca ☆ per salvare in Bacheca, votate 🔥/💀 e mandatevi la bacheca: le liste si uniscono senza doppioni.' })
-      ])
-    ]);
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   }
 
-  // ---------------------------------------------------------------- roulette
-  var spinPick = null, spinning = false;
-  function showCar(c, final) {
-    $('slotEmoji').textContent = c.e;
-    $('slotName').textContent = c.make + ' ' + c.model + (c.kw ? ' ' + c.kw.toUpperCase() : '');
-    $('slotMeta').textContent = final ? c.y[0] + '–' + c.y[1] + ' · circa ' + kshort(c.p[0]) + '–' + kshort(c.p[1]) + ' €' : ' ';
+  // ---------------------------------------------------------------- navigazione
+  var scrollPos = {};
+  var depth = 0;
+  function go(hash) { if (location.hash === hash) route(); else location.hash = hash; }
+  function currentView() {
+    var v = document.querySelector('.view.active');
+    return v ? v.id.replace('view-', '') : '';
   }
-  function spin() {
-    if (spinning) return;
-    spinning = true;
-    var max = int(state.search.pmax);
-    var list = $('rouletteBudget').checked && max ? D.ROULETTE.filter(function (c) { return c.p[0] <= max; }) : D.ROULETTE;
-    if (!list.length) list = D.ROULETTE;
-    $('slot').classList.remove('win');
-    $('slotFact').textContent = '';
-    $('btnUseSpin').disabled = true;
-    var steps = 16 + Math.floor(Math.random() * 6), i = 0, idx = 0;
-    (function tick() {
-      idx = Math.floor(Math.random() * list.length);
-      showCar(list[idx], false);
-      if (++i < steps) setTimeout(tick, 30 + i * i * 0.6);
-      else {
-        spinPick = list[idx];
-        showCar(spinPick, true);
-        $('slot').classList.add('win');
-        $('slotFact').textContent = spinPick.f;
-        $('btnUseSpin').disabled = false;
-        buzz([15, 40, 20]);
-        spinning = false;
-      }
-    })();
-  }
-  function useSpin() {
-    var c = spinPick;
-    if (!c) return;
-    var s = clone(EMPTY);
-    s.region = state.search.region;
-    s.make = c.make; s.model = c.model; s.kw = c.kw || '';
-    s.q = (c.make + ' ' + c.model + (c.kw ? ' ' + c.kw : '')).toLowerCase();
-    s.ymin = String(c.y[0]); s.ymax = String(c.y[1]); s.pmax = String(c.p[1]);
-    state.search = s;
-    lastExtras = {};
-    $('dlgRoulette').close();
-    switchView('search');
-    syncText();
-    runSearch();
+  function show(view) {
+    var prev = currentView();
+    if (prev) scrollPos[prev] = window.scrollY;
+    Array.prototype.forEach.call(document.querySelectorAll('.view'), function (el) { el.classList.toggle('active', el.id === 'view-' + view); });
+    var inner = view === 'ad' || view === 'results';
+    $('btnBack').hidden = !inner;
+    $('brand').hidden = view === 'ad';
+    $('topTitle').textContent = '';
+    $('navSearch').classList.toggle('on', view === 'search' || view === 'results');
+    $('navSaved').classList.toggle('on', view === 'saved');
   }
 
-  // ---------------------------------------------------------------- navigazione e avvio
-  function switchView(v) {
-    $('view-search').classList.toggle('active', v === 'search');
-    $('view-board').classList.toggle('active', v === 'board');
-    if (v === 'board') { renderWho(); renderBoard(); }
-    if (v === 'search' && results.items.length) renderResults();
+  function route() {
+    var hash = location.hash || '#/';
+    var path = hash.slice(1).split('?')[0];
+    var params = new URLSearchParams(hash.split('?')[1] || '');
+    if (path === '/annuncio' && params.get('u')) {
+      show('ad');
+      window.scrollTo(0, 0);
+      showAd(params.get('u'));
+      return;
+    }
+    if (path === '/risultati') {
+      show('results');
+      $('summary').textContent = summary(state.search);
+      $('sort').value = state.search.sort || 'rilevanza';
+      var sig = signature(state.search) + '|' + serverSort(state.search.sort);
+      if (results.sig !== sig) { window.scrollTo(0, 0); runSearch(); }
+      else { renderResults(); window.scrollTo(0, scrollPos.results || 0); }
+      return;
+    }
+    if (path === '/salvati') {
+      show('saved');
+      renderSaved();
+      loadSaved();
+      window.scrollTo(0, 0);
+      return;
+    }
+    show('search');
+    writeForm(state.search);
+    renderSearchLists();
+    loadSearches();
     window.scrollTo(0, 0);
   }
 
-  function handleIncoming() {
-    var hash = location.hash.slice(1);
-    var params = new URLSearchParams(location.search);
-    var mB = hash.match(/(?:^|&)b=([A-Za-z0-9_-]+)/);
-    var mS = hash.match(/(?:^|&)s=([A-Za-z0-9_-]+)/);
-    var handled = false;
-    if (mS) {
-      try { state.search = Object.assign(clone(EMPTY), X.decodeJson(mS[1])); syncText(); } catch (e) { /* ignora */ }
-      handled = true;
-    }
-    if (mB) { if (importBoardCode(mB[1])) switchView('board'); handled = true; }
-    var shared = [params.get('title'), params.get('text'), params.get('url')].filter(Boolean).join(' ');
-    if (shared) {
-      switchView('board');
-      $('addUrl').value = shared;
-      addByLink();
-      handled = true;
-    }
-    if (handled && history.replaceState) history.replaceState(null, '', location.pathname);
-  }
-
   function init() {
-    load();
-    fillSelect($('fFuel'), D.FUELS);
-    fillSelect($('fGear'), D.GEARS);
-    fillSelect($('fBody'), D.BODIES);
-    fillSelect($('fRegion'), D.REGIONS.map(function (r) { return { k: r.k, n: r.n }; }));
-    D.PRESETS.forEach(function (p) {
-      $('presets').appendChild(h('button', { class: 'chip', type: 'button', text: p.e + ' ' + p.n, on: { click: function () {
-        buzz();
-        var s = clone(EMPTY);
-        if (!p.s.make) { s.make = state.search.make; s.model = state.search.model; s.kw = state.search.kw; s.q = state.search.q; }
-        s.region = state.search.region;
-        state.search = Object.assign(s, p.s);
-        if (p.s.make) state.search.q = p.s.make.toLowerCase();
-        lastExtras = {};
-        $('dlgFilters').close();
-        syncText();
-        runSearch();
-      } } }));
+    buildForm();
+    writeForm(state.search);
+    $('sort').addEventListener('change', function () {
+      state.search.sort = $('sort').value;
+      lset('search', state.search);
+      // prezzo/km/recenti cambiano cosa chiediamo ai siti, gli altri ordinano solo quello che c'è
+      var sig = signature(state.search) + '|' + serverSort(state.search.sort);
+      if (results.sig !== sig) runSearch(); else renderResults();
     });
-
-    var q = $('q'), typing;
-    q.addEventListener('input', function () {
-      applyQuery(q.value);
-      $('clearQ').hidden = !q.value;
-      renderSuggest();
-      clearTimeout(typing);
-      typing = setTimeout(runSearch, 700);
-    });
-    q.addEventListener('keydown', function (e) { if (e.key === 'Enter') { clearTimeout(typing); q.blur(); $('suggest').hidden = true; runSearch(); } });
-    q.addEventListener('blur', function () { setTimeout(function () { $('suggest').hidden = true; }, 150); });
-    $('clearQ').addEventListener('click', function () { q.value = ''; applyQuery(''); $('clearQ').hidden = true; runSearch(); q.focus(); });
-    $('sort').addEventListener('change', function () { state.search.sort = $('sort').value; runSearch(); });
-    $('btnFilters').addEventListener('click', openFilters);
-    $('filtersForm').addEventListener('submit', function () { applyFilters(); });
-    $('btnResetFilters').addEventListener('click', function () {
-      var f = $('filtersForm');
-      ['pmin', 'pmax', 'ymin', 'ymax', 'kmmax', 'fuel', 'gear', 'body', 'cvmin', 'cvmax', 'region'].forEach(function (k) { f.elements[k].value = ''; });
-      f.elements.europe.checked = false;
-    });
-
-    $('btnHome').addEventListener('click', function () { switchView('search'); });
-    $('btnBoard').addEventListener('click', function () { switchView($('view-board').classList.contains('active') ? 'search' : 'board'); });
-    $('btnHelp').addEventListener('click', showHelp);
-    $('btnRoulette').addEventListener('click', function () { openDialog($('dlgRoulette')); if (!spinPick) spin(); });
-    $('btnSpin').addEventListener('click', spin);
-    $('btnUseSpin').addEventListener('click', useSpin);
-    ['dlgFilters', 'dlgRoulette', 'dlgText'].forEach(function (id) { bindClose($(id)); });
-
+    $('btnSaveSearch').addEventListener('click', saveSearch);
+    $('btnBack').addEventListener('click', function () { if (depth > 0) history.back(); else go(currentView() === 'ad' ? '#/risultati' : '#/'); });
     $('btnAdd').addEventListener('click', addByLink);
     $('addUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') addByLink(); });
-    $('boardSort').addEventListener('change', function () { state.boardSort = $('boardSort').value; save(); renderBoard(); });
-    Array.prototype.forEach.call($('whoSeg').children, function (b) {
-      b.addEventListener('click', function () { state.me = b.getAttribute('data-who'); save(); renderWho(); renderBoard(); });
-    });
-    $('btnNames').addEventListener('click', editNames);
-    $('btnShareBoard').addEventListener('click', shareBoard);
-    $('btnImport').addEventListener('click', function () {
-      var ta = h('textarea', { placeholder: 'Incolla il link della bacheca del socio' });
-      textDialog('Importa bacheca', [ta], [{ label: 'Importa', cta: true, run: function () {
-        var m = ta.value.match(/[#&]b=([A-Za-z0-9_-]+)/);
-        importBoardCode(m ? m[1] : ta.value.trim());
-      } }]);
-    });
-    $('btnClear').addEventListener('click', function () {
-      textDialog('Svuoto la bacheca?', [h('p', { text: 'Le ' + state.board.length + ' auto spariscono da questo telefono.' })],
-        [{ label: 'Svuota', cta: true, run: function () { state.board = []; save(); renderBoard(); renderBoardCount(); } }]);
-    });
+    $('savedSort').addEventListener('change', renderSaved);
+    $('btnCheck').addEventListener('click', checkPrices);
+    $('dlg').addEventListener('click', function (e) { if (e.target === $('dlg')) $('dlg').close(); });
+    window.addEventListener('hashchange', function () { depth++; route(); });
+    watchBottom();
 
-    window.addEventListener('hashchange', handleIncoming);
-    handleIncoming();
-    syncText();
-    $('sort').value = state.search.sort || 'rilevanza';
-    renderWho();
-    renderBoardCount();
-    runSearch();
+    // Condivisione da altre app (Android): il link finisce nei salvati
+    var params = new URLSearchParams(location.search);
+    var shared = [params.get('title'), params.get('text'), params.get('url')].filter(Boolean).join(' ');
+    if (shared) {
+      history.replaceState(null, '', location.pathname + '#/salvati');
+      $('addUrl').value = shared;
+      setTimeout(addByLink, 300);
+    }
+    route();
+    loadSaved();
 
     if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
       navigator.serviceWorker.register('sw.js').catch(function () { /* niente offline */ });

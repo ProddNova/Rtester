@@ -1,5 +1,5 @@
 // AutoSuperMarket: ogni annuncio è una "card" HTML con etichette (Chilometri, Cambio, ...).
-const { num, normFuel, normGear, cv, year, decode } = require('./common');
+const { num, normFuel, normGear, cv, year, decode, plain } = require('./common');
 const SITES = require('../../public/js/sites.js');
 
 const site = SITES.SITES.find((s) => s.id === 'autosupermarket');
@@ -71,4 +71,65 @@ function parse(html) {
   return { items, total, pages: Math.max(1, Math.ceil(total / PER_PAGE)) };
 }
 
-module.exports = { id: 'autosupermarket', name: 'AutoSuperMarket', url, parse };
+// Pagina del singolo annuncio: dati nel JSON-LD "Car", foto dal CDN
+function detail(html) {
+  if (!html) return null;
+  let car = null;
+  const re = /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    try {
+      const d = JSON.parse(m[1]);
+      if (d && [].concat(d['@type']).includes('Car')) car = d;
+    } catch (e) { /* blocco non valido */ }
+  }
+  if (!car) return null;
+  const off = car.offers || {};
+  const sel = off.seller || {};
+  const addr = sel.address || {};
+  const eng = [].concat(car.vehicleEngine || [])[0] || {};
+  const pw = [].concat(eng.enginePower || []);
+  const hp = (pw.find((p) => p.unitCode === 'BHP') || {}).value;
+  const kwv = (pw.find((p) => p.unitCode === 'KWT') || {}).value;
+  const photos = [];
+  (html.match(/https:\/\/cdn\.autosupermarket\.it\/photos\/prod\/\d+\/[0-9a-f]+\.jpg/g) || []).forEach((u) => { if (!photos.includes(u)) photos.push(u); });
+  const titleTag = decode((html.match(/<title>([^<]*)/) || [])[1] || '');
+  const drive = { FrontWheelDriveConfiguration: 'Anteriore', RearWheelDriveConfiguration: 'Posteriore', AllWheelDriveConfiguration: 'Integrale', FourWheelDriveConfiguration: 'Integrale' }[String(car.driveWheelConfiguration || '').replace('https://schema.org/', '')] || '';
+  return {
+    title: car.name || '',
+    version: String(car.vehicleConfiguration || '').trim(),
+    price: num(off.price),
+    km: car.mileageFromOdometer ? num(car.mileageFromOdometer.value) : null,
+    year: year(car.vehicleModelDate),
+    reg: car.vehicleModelDate ? car.vehicleModelDate.slice(5, 7) + '/' + car.vehicleModelDate.slice(0, 4) : '',
+    fuel: normFuel(eng.fuelType),
+    fuelLabel: eng.fuelType || '',
+    gear: normGear(car.vehicleTransmission),
+    gearLabel: car.vehicleTransmission || '',
+    cv: num(hp),
+    kw: num(kwv),
+    cc: eng.engineDisplacement && eng.engineDisplacement.value ? num(eng.engineDisplacement.value) : null,
+    body: car.bodyType || '',
+    color: car.color || '',
+    doors: num(car.numberOfDoors),
+    seats: num(car.seatingCapacity),
+    drive,
+    owners: typeof car.numberOfPreviousOwners === 'number' && car.numberOfPreviousOwners > 0 ? car.numberOfPreviousOwners : null,
+    description: plain(String(car.description || '').replace(/\n/g, '<br>')),
+    photos,
+    equipment: [],
+    seller: {
+      name: sel.name || '',
+      type: /privat/i.test(sel['@type'] || '') ? 'privato' : 'concessionario',
+      city: [addr.streetAddress, [addr.postalCode, addr.addressLocality].filter(Boolean).join(' ')].filter(Boolean).join(', '),
+      phones: [],
+      whatsapp: ''
+    },
+    posted: Date.parse(off.availabilityStarts) || null,
+    market: null,
+    removed: /OutOfStock|SoldOut|Discontinued/.test(off.availability || ''),
+    headline: titleTag
+  };
+}
+
+module.exports = { id: 'autosupermarket', name: 'AutoSuperMarket', url, parse, detail };

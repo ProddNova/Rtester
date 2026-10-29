@@ -43,7 +43,8 @@ function decode(s) {
   return String(s || '')
     .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;|&#x27;/g, "'")
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (m, d) => String.fromCharCode(+d));
+    .replace(/&#x([0-9a-f]+);/gi, (m, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (m, d) => String.fromCodePoint(+d));
 }
 
 function nextData(html) {
@@ -53,3 +54,17 @@ function nextData(html) {
 }
 
 module.exports = { num, normFuel, normGear, cv, year, decode, nextData, MONTHS };
+
+// HTML della descrizione -> testo semplice (gli a-capo restano)
+function plain(html) {
+  return decode(String(html || '')
+    .replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<button[\s\S]*?<\/button>/gi, '')
+    .replace(/<[^>]+>/g, ''))
+    .replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+// Valutazione prezzo stile AutoScout24: 0 = sospetto, 1 = ottimo ... 6 = molto caro
+const DEAL_LABELS = ['Prezzo sospetto', 'Ottimo prezzo', 'Buon prezzo', 'Nella media', 'Un po\' caro', 'Caro', 'Molto caro'];
+
+module.exports.plain = plain;
+module.exports.DEAL_LABELS = DEAL_LABELS;

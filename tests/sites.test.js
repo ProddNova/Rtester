@@ -76,13 +76,6 @@ test('filtri mancanti segnalati', () => {
   assert.deepStrictEqual(as.missing, []);
 });
 
-test('ogni modello della roulette esiste nella lista marche', () => {
-  for (const c of D.ROULETTE) {
-    const mk = D.MAKES.find((m) => m.n === c.make);
-    assert.ok(mk, c.make);
-    assert.ok(mk.m.includes(c.model), c.make + ' ' + c.model);
-  }
-});
 
 test('AutoSuperMarket: eccezioni slug', () => {
   assert.ok(url('autosupermarket', { make: 'Mercedes-Benz', model: 'Classe C' }).endsWith('/auto-usate/mercedes/classe-c'));

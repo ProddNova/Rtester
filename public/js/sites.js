@@ -91,7 +91,7 @@
       color: '#f5f200',
       ink: '#333',
       tag: 'Il più grande in Europa',
-      supports: ['marca', 'modello', 'parole', 'prezzo', 'anno', 'km', 'carburante', 'cambio', 'carrozzeria', 'cv', 'zona', 'ordine', 'europa'],
+      supports: ['marca', 'modello', 'parole', 'prezzo', 'anno', 'km', 'carburante', 'cambio', 'carrozzeria', 'cv', 'zona', 'ordine', 'europa', 'venditore'],
       build: function (s) {
         var FUEL = { benzina: 'B', diesel: 'D', gpl: 'L', metano: 'C', elettrica: 'E', ibrida: '2,3' };
         var GEAR = { manuale: 'M', automatico: 'A' };
@@ -114,7 +114,8 @@
           ustate: 'N,U',
           pricefrom: num(s.pmin), priceto: num(s.pmax),
           fregfrom: num(s.ymin), fregto: num(s.ymax),
-          kmto: num(s.kmmax),
+          kmfrom: num(s.kmmin), kmto: num(s.kmmax),
+          custtype: s.seller === 'privato' ? 'P' : s.seller === 'concessionario' ? 'D' : '',
           fuel: FUEL[s.fuel], gear: GEAR[s.gear], body: BODY[s.body],
           powerfrom: cvToKw(s.cvmin), powerto: cvToKw(s.cvmax), powertype: (num(s.cvmin) || num(s.cvmax)) ? 'kw' : '',
           zip: r ? r.cap : '', zipr: r ? r.r : '',
@@ -142,7 +143,7 @@
         return path + qs({
           'prezzo-da': num(s.pmin), 'prezzo-a': num(s.pmax),
           'anno-da': num(s.ymin), 'anno-a': num(s.ymax),
-          'km-a': num(s.kmmax),
+          'km-da': num(s.kmmin), 'km-a': num(s.kmmax),
           alimentazione: FUEL[s.fuel],
           cambio: s.gear || ''
         });
@@ -209,7 +210,7 @@
   var FILTER_LABELS = {
     marca: 'marca', modello: 'modello', parole: 'parole chiave', prezzo: 'prezzo', anno: 'anno',
     km: 'km', carburante: 'carburante', cambio: 'cambio', carrozzeria: 'carrozzeria', cv: 'potenza',
-    zona: 'zona', ordine: 'ordinamento', europa: 'Europa'
+    zona: 'zona', ordine: 'ordinamento', europa: 'Europa', venditore: 'tipo venditore'
   };
 
   // Quali filtri l'utente ha impostato (in "lingua filtri").
@@ -220,7 +221,8 @@
     if (s.kw) a.push('parole');
     if (num(s.pmin) || num(s.pmax)) a.push('prezzo');
     if (num(s.ymin) || num(s.ymax)) a.push('anno');
-    if (num(s.kmmax)) a.push('km');
+    if (num(s.kmmax) || num(s.kmmin)) a.push('km');
+    if (s.seller) a.push('venditore');
     if (s.fuel) a.push('carburante');
     if (s.gear) a.push('cambio');
     if (s.body) a.push('carrozzeria');

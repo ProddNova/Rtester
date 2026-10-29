@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>CacciAuto</title>
-  <meta name="description" content="Annunci di auto usate da AutoScout24, AutoSuperMarket e Automobile.it in un'unica lista, senza doppioni.">
+  <meta name="description" content="Annunci di auto usate da AutoScout24, AutoSuperMarket, Automobile.it e Trovit in un'unica lista, senza doppioni.">
   <meta name="theme-color" content="#0e1015">
   <meta name="color-scheme" content="dark">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -18,33 +18,81 @@
 </head>
 <body>
   <header class="top">
-    <button class="brand" id="btnHome" aria-label="Vai alla ricerca">CacciAuto</button>
-    <div class="top-actions">
-      <button class="ibtn" id="btnRoulette" aria-label="Roulette">🎲</button>
-      <button class="ibtn" id="btnBoard" aria-label="Bacheca">⭐<b class="count" id="boardCount" hidden>0</b></button>
-      <button class="ibtn" id="btnHelp" aria-label="Aiuto">?</button>
-    </div>
+    <button class="back" id="btnBack" aria-label="Indietro" hidden>‹</button>
+    <a class="brand" href="#/" id="brand">CacciAuto</a>
+    <div class="top-title" id="topTitle"></div>
+    <nav class="top-actions">
+      <a class="ibtn" href="#/" id="navSearch" aria-label="Cerca">🔍</a>
+      <a class="ibtn" href="#/salvati" id="navSaved" aria-label="Salvati">⭐<b class="count" id="savedCount" hidden>0</b></a>
+    </nav>
   </header>
 
   <!-- ================= RICERCA ================= -->
-  <main id="view-search" class="view active">
-    <div class="searchbar">
-      <div class="sbox">
-        <input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"
-               placeholder="saab 9-3 diesel sotto 6k" aria-label="Cerca un'auto">
-        <button class="sclear" id="clearQ" aria-label="Cancella" hidden>✕</button>
-      </div>
-      <button class="fbtn" id="btnFilters">Filtri<b class="count" id="filterCount" hidden>0</b></button>
-    </div>
-    <div id="suggest" class="suggest" hidden></div>
-    <div class="chips-row" id="chips"></div>
+  <main id="view-search" class="view">
+    <form id="searchForm" autocomplete="off">
+      <section class="card">
+        <div class="grid2">
+          <label>Marca<select name="make" id="fMake"><option value="">Tutte le marche</option></select></label>
+          <label>Modello<select name="model" id="fModel" disabled><option value="">Tutti i modelli</option></select></label>
+          <label class="span2">Versione / parole chiave<input name="kw" type="text" maxlength="40" placeholder="es. GTI, Aero, Quattro, Vector" autocapitalize="off"></label>
+        </div>
+      </section>
 
+      <section class="card">
+        <div class="grid2">
+          <label>Prezzo da<select name="pmin" data-list="price"><option value="">Qualsiasi</option></select></label>
+          <label>Prezzo fino a<select name="pmax" data-list="price"><option value="">Qualsiasi</option></select></label>
+          <label>Anno da<select name="ymin" data-list="year"><option value="">Qualsiasi</option></select></label>
+          <label>Anno fino a<select name="ymax" data-list="year"><option value="">Qualsiasi</option></select></label>
+          <label>Km da<select name="kmmin" data-list="km"><option value="">Qualsiasi</option></select></label>
+          <label>Km fino a<select name="kmmax" data-list="km"><option value="">Qualsiasi</option></select></label>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="grid2">
+          <label>Alimentazione<select name="fuel" id="fFuel"><option value="">Tutte</option></select></label>
+          <label>Cambio<select name="gear" id="fGear"><option value="">Tutti</option></select></label>
+          <label>Carrozzeria<select name="body" id="fBody"><option value="">Tutte</option></select></label>
+          <label>Venditore<select name="seller"><option value="">Tutti</option><option value="privato">Privati</option><option value="concessionario">Concessionari</option></select></label>
+          <label>Potenza da (CV)<input name="cvmin" type="number" inputmode="numeric" min="0" placeholder="CV"></label>
+          <label>Potenza fino a (CV)<input name="cvmax" type="number" inputmode="numeric" min="0" placeholder="CV"></label>
+          <label class="span2">Zona<select name="region" id="fRegion"><option value="">Tutta Italia</option></select></label>
+        </div>
+        <label class="check"><input type="checkbox" name="europe"> Anche annunci dall'estero (AutoScout24)</label>
+      </section>
+
+      <div class="form-foot">
+        <button type="button" class="link" id="btnReset">Azzera</button>
+        <button type="submit" class="sbtn big">Cerca</button>
+      </div>
+    </form>
+
+    <section id="savedSearchesBox" class="block" hidden>
+      <h3>Ricerche salvate</h3>
+      <div class="chips" id="savedSearches"></div>
+    </section>
+    <section id="recentBox" class="block" hidden>
+      <h3>Ultime ricerche</h3>
+      <div class="chips" id="recentSearches"></div>
+    </section>
+  </main>
+
+  <!-- ================= RISULTATI ================= -->
+  <main id="view-results" class="view">
+    <div class="res-bar">
+      <a class="summary" href="#/" id="summary" title="Modifica ricerca"></a>
+      <button class="ibtn sm" id="btnSaveSearch" aria-label="Salva ricerca">☆</button>
+    </div>
     <div class="res-head">
-      <span id="resInfo" class="muted">Scrivi un'auto o scegli un filtro</span>
+      <span id="resInfo" class="muted"></span>
       <select id="sort" aria-label="Ordina">
         <option value="rilevanza">Misti</option>
+        <option value="affari">Affari prima</option>
         <option value="prezzo">Prezzo ↑</option>
+        <option value="prezzo_desc">Prezzo ↓</option>
         <option value="km">Km ↑</option>
+        <option value="anno">Anno ↓</option>
         <option value="recenti">Più recenti</option>
       </select>
     </div>
@@ -53,90 +101,37 @@
     <div id="more" class="more"></div>
   </main>
 
-  <!-- ================= BACHECA ================= -->
-  <main id="view-board" class="view">
+  <!-- ================= ANNUNCIO ================= -->
+  <main id="view-ad" class="view"></main>
+
+  <!-- ================= SALVATI ================= -->
+  <main id="view-saved" class="view">
     <div class="board-head">
-      <h2>⭐ Bacheca</h2>
-      <div class="seg" id="whoSeg" aria-label="Chi sei">
-        <button data-who="a"></button><button data-who="b"></button>
-      </div>
-      <button class="ibtn sm" id="btnNames" aria-label="Cambia nomi">✏️</button>
+      <h2>Salvati</h2>
+      <select id="savedSort" aria-label="Ordina salvati">
+        <option value="nuovi">Ultimi salvati</option>
+        <option value="prezzo">Prezzo ↑</option>
+        <option value="calo">Prezzo sceso</option>
+      </select>
     </div>
+    <div id="storeWarn" class="alert" hidden></div>
     <div class="addrow">
-      <input id="addUrl" type="url" inputmode="url" placeholder="Incolla un link (anche Subito/Marketplace)" autocomplete="off">
+      <input id="addUrl" type="url" inputmode="url" placeholder="Incolla un link (anche Subito o Marketplace)" autocomplete="off">
       <button class="sbtn" id="btnAdd">Aggiungi</button>
     </div>
     <div id="addMsg" class="addmsg" hidden></div>
     <div class="board-tools">
-      <select id="boardSort" aria-label="Ordina bacheca">
-        <option value="nuovi">Ultime aggiunte</option>
-        <option value="top">Più votate</option>
-        <option value="prezzo">Prezzo ↑</option>
-        <option value="km">Km ↑</option>
-      </select>
-      <button class="link" id="btnShareBoard">📤 Manda al socio</button>
-      <button class="link" id="btnImport">📥 Importa</button>
+      <span class="muted" id="savedInfo"></span>
+      <button class="link" id="btnCheck">↻ Controlla prezzi</button>
     </div>
-    <div id="board" class="list"></div>
-    <button class="link danger center" id="btnClear">Svuota bacheca</button>
+    <div id="saved" class="list"></div>
   </main>
 
-  <!-- Filtri -->
-  <dialog id="dlgFilters" class="sheet">
-    <form method="dialog" class="sheet-body" id="filtersForm">
-      <div class="sheet-title"><h2>Filtri</h2><button type="button" class="ibtn sm" data-close aria-label="Chiudi">✕</button></div>
-      <div class="presets" id="presets"></div>
-      <div class="grid2">
-        <label>Prezzo da<input type="number" inputmode="numeric" name="pmin" placeholder="€"></label>
-        <label>Prezzo a<input type="number" inputmode="numeric" name="pmax" placeholder="€"></label>
-        <label>Anno dal<input type="number" inputmode="numeric" name="ymin" placeholder="es. 2005"></label>
-        <label>Anno al<input type="number" inputmode="numeric" name="ymax" placeholder="es. 2012"></label>
-        <label>Km massimi
-          <select name="kmmax">
-            <option value="">Qualsiasi</option><option value="50000">50.000</option><option value="100000">100.000</option>
-            <option value="150000">150.000</option><option value="200000">200.000</option><option value="250000">250.000</option><option value="300000">300.000</option>
-          </select>
-        </label>
-        <label>Alimentazione<select name="fuel" id="fFuel"><option value="">Tutte</option></select></label>
-        <label>Cambio<select name="gear" id="fGear"><option value="">Tutti</option></select></label>
-        <label>Carrozzeria<select name="body" id="fBody"><option value="">Tutte</option></select></label>
-        <label>CV da<input type="number" inputmode="numeric" name="cvmin" placeholder="CV"></label>
-        <label>CV a<input type="number" inputmode="numeric" name="cvmax" placeholder="CV"></label>
-        <label class="span2">Zona<select name="region" id="fRegion"><option value="">Tutta Italia</option></select></label>
-      </div>
-      <label class="check"><input type="checkbox" name="europe"> Cerca anche all'estero (solo AutoScout24)</label>
-      <p class="hint">La carrozzeria la filtra solo AutoScout24.</p>
-      <div class="sheet-actions">
-        <button type="button" class="sbtn ghost" id="btnResetFilters">Azzera</button>
-        <button type="submit" class="sbtn" value="apply">Mostra annunci</button>
-      </div>
-    </form>
-  </dialog>
-
-  <!-- Roulette -->
-  <dialog id="dlgRoulette" class="sheet">
-    <div class="sheet-body">
-      <div class="sheet-title"><h2>🎲 Roulette</h2><button class="ibtn sm" data-close aria-label="Chiudi">✕</button></div>
-      <div class="slot" id="slot">
-        <div class="slot-emoji" id="slotEmoji">🚗</div>
-        <div class="slot-name" id="slotName">Pronti?</div>
-        <div class="slot-meta" id="slotMeta">&nbsp;</div>
-      </div>
-      <p class="fact" id="slotFact"></p>
-      <label class="check"><input type="checkbox" id="rouletteBudget"> Solo nel mio budget</label>
-      <div class="sheet-actions">
-        <button class="sbtn ghost" id="btnSpin">Rigira</button>
-        <button class="sbtn" id="btnUseSpin" disabled>Cercala</button>
-      </div>
-    </div>
-  </dialog>
-
-  <!-- Generico -->
-  <dialog id="dlgText" class="sheet">
+  <dialog id="dlg" class="sheet">
     <form method="dialog" class="sheet-body">
-      <div class="sheet-title"><h2 id="dlgTextTitle"></h2><button class="ibtn sm" value="cancel" aria-label="Chiudi">✕</button></div>
-      <div id="dlgTextBody" class="dlg-text"></div>
-      <div class="sheet-actions" id="dlgTextActions"></div>
+      <div class="sheet-title"><h2 id="dlgTitle"></h2><button class="ibtn sm" value="cancel" aria-label="Chiudi">✕</button></div>
+      <div id="dlgBody" class="dlg-text"></div>
+      <div class="sheet-actions" id="dlgActions"></div>
     </form>
   </dialog>
 
@@ -144,7 +139,6 @@
 
   <script src="js/data.js"></script>
   <script src="js/sites.js"></script>
-  <script src="js/parse.js"></script>
   <script src="js/dedup.js"></script>
   <script src="js/app.js"></script>
 </body>
