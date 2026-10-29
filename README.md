@@ -8,10 +8,10 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 ## Cosa fa
 
 - **Home da scorrere**: senza mettere filtri trovi un feed infinito, in due modalità:
-  - **Da caccia**: auto da appassionati (Evo, MX-5, Delta Integrale, Saab Aero…, con una curiosità
+  - **Consigliati**: auto da appassionati (Evo, MX-5, Delta Integrale, Saab Aero…, con una curiosità
     su ognuna) e modelli diffusi con prezzo sotto il mercato secondo AutoScout24. Ordine casuale a ogni apertura
     (pulsante "Mescola"), mai due annunci di fila dello stesso modello;
-  - **Appena usciti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit (e Kleinanzeigen, Marktplaats).
+  - **Più recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit (e Kleinanzeigen, Marktplaats).
 
   Filtri solo per il feed: **budget massimo**, **km massimi** e **dove** (Italia + estero oppure solo Italia).
   Nel feed vanno solo annunci con foto.
@@ -59,8 +59,8 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 - **Nascondi** gli annunci che non ti interessano.
 - **App installabile** (PWA); su Android puoi condividere un annuncio da un'altra app verso AutoHunter.
 
-- **Stile**: nero asfalto e arancione "da caccia", angoli vivi, niente sfumature; titoli e prezzi in Archivo condensato,
-  dati tecnici in JetBrains Mono (Google Fonts).
+- **Stile** semplice: scuro, un solo carattere (Plus Jakarta Sans, Google Fonts), angoli morbidi;
+  l'arancione solo per pulsanti principali e prezzi.
 - **Icone** [Lucide](https://lucide.dev) (gratuite, licenza ISC), salvate nel progetto (`public/js/icons.js`,
   rigenerabili con `node scripts/icons.js`).
 - **Niente zoom** con le dita sul telefono.

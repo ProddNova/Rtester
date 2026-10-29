@@ -1116,11 +1116,11 @@
     return h('a', { class: 'fcard', href: '#/annuncio?u=' + encodeURIComponent(it.url) }, [
       h('div', { class: 'ph' }, [
         it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.replaceWith(ic('car', 'noimg')); } } }) : ic('car', 'noimg'),
-        h('span', { class: 'why ' + (it.reason || '') }, why),
-        h('span', { class: 'pr-over', text: eur(it.price) })
+        h('span', { class: 'why ' + (it.reason || '') }, why)
       ]),
       h('div', { class: 'bd' }, [
         h('div', { class: 'tt' }, titleNodes(it)),
+        h('div', { class: 'prow' }, [h('span', { class: 'fprice', text: eur(it.price) }), dealBadge(it)]),
         meta ? h('div', { class: 'mt', text: meta }) : null,
         it.fact ? h('div', { class: 'fact' }, it2('sparkles', it.fact)) : null,
         h('div', { class: 'ft' }, tags)
