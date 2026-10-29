@@ -1,0 +1,26 @@
+# Blueprint Render: sito statico, nessun server.
+# Su Render: New > Blueprint > scegli questo repo. Render legge questo file e crea il sito da solo.
+services:
+  - type: web
+    runtime: static
+    name: cacciauto
+    # Prima i test (se falliscono il deploy si ferma e resta online la versione vecchia),
+    # poi copia in dist/ solo i file del sito.
+    buildCommand: npm test && npm run build
+    staticPublishPath: ./dist
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+    headers:
+      # Niente cache "cieca": il browser ricontrolla sempre se c'è una versione nuova
+      # (i file sono piccoli, costa pochissimo). Così gli aggiornamenti arrivano subito.
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin

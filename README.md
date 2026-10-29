@@ -47,8 +47,19 @@ e la deduplica avviene nella bacheca, dove salvate le auto che contano.
 
 - **In locale**: apri `index.html` nel browser (funziona anche con doppio click), oppure
   `npm start` e vai su http://localhost:8080 (serve per installarla come app).
-- **Online gratis con GitHub Pages**: Settings → Pages → "Deploy from a branch" → scegli il branch e la cartella `/ (root)`.
-  Va bene qualsiasi hosting statico (Netlify, Cloudflare Pages, ...).
+- **Online su Render (gratis)**: il repo contiene già `render.yaml`.
+  1. Su [render.com](https://render.com) → **New** → **Blueprint**.
+  2. Collega GitHub e scegli questo repo (e il branch che vuoi pubblicare).
+  3. Conferma: Render crea il sito statico `cacciauto` e ti dà un indirizzo tipo `https://cacciauto.onrender.com`.
+
+  Ogni push sul branch ripubblica il sito in automatico. Il build esegue prima i test
+  (`npm test`) e poi `npm run build`, che copia in `dist/` solo i file del sito: se un test
+  fallisce, resta online la versione precedente.
+
+  In alternativa, senza Blueprint: **New** → **Static Site**, Build Command `npm test && npm run build`,
+  Publish Directory `dist`.
+- Va bene anche qualsiasi altro hosting statico (GitHub Pages, Netlify, Cloudflare Pages, ...):
+  basta pubblicare la cartella `dist/` dopo `npm run build`, oppure direttamente la radice del repo.
 
 ## Struttura
 
@@ -62,6 +73,8 @@ js/dedup.js           chiavi annuncio, caccia ai doppioni, link di condivisione
 js/app.js             interfaccia
 sw.js, manifest.webmanifest, icons/   app installabile e offline
 tests/                test (node --test)
+scripts/build.js      copia i file del sito in dist/ (per l'hosting)
+render.yaml           configurazione per Render
 ```
 
 ## Test
