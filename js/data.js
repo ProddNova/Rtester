@@ -68,12 +68,18 @@
       'Audi|RS3': 'rs-3', 'Audi|RS4': 'rs-4', 'Audi|RS6': 'rs-6',
       'Lexus|IS 200': 'is', 'Lexus|IS 300': 'is', 'Lexus|CT 200h': 'ct', 'Lexus|NX 300': 'nx', 'Lexus|RX 450h': 'rx', 'Lexus|UX 250h': 'ux',
       'MINI|Cooper': 'mini', 'MINI|Countryman': 'mini-countryman', 'MINI|Clubman': 'mini-clubman', 'MINI|John Cooper Works': null,
-      'Citroen|DS3': null, 'Maserati|3200 GT': null
+      'Citroen|DS3': null, 'Maserati|3200 GT': null,
+      'Mazda|2': 'mazda2', 'Mazda|3': 'mazda3', 'Mazda|6': 'mazda6',
+      'Porsche|944': '924-944', 'Porsche|924': '924-944', 'Skoda|Enyaq': 'enyaq-iv',
+      'Audi|80': null, 'Audi|100': null, 'BMW|M2': null, 'BMW|M3': null, 'BMW|M4': null, 'BMW|M5': null,
+      'Saab|99': null, 'Toyota|MR 2': null, 'Volvo|850': null, 'Volvo|940': null
     },
     automobile: {
       'Lexus|IS 200': 'is', 'Lexus|IS 300': 'is', 'Lexus|CT 200h': 'ct', 'Lexus|NX 300': 'nx', 'Lexus|RX 450h': 'rx', 'Lexus|UX 250h': 'ux',
       'Mercedes-Benz|CLK': 'classe_clk', 'Mercedes-Benz|Classe SL': 'serie_sl',
-      'Citroen|2CV': '2_cv', 'Citroen|DS3': null, 'Maserati|3200 GT': null, 'Toyota|Aygo X': null, 'Volkswagen|up!': null
+      'Citroen|2CV': '2_cv', 'Citroen|DS3': null, 'Maserati|3200 GT': null, 'Toyota|Aygo X': null, 'Volkswagen|up!': null,
+      'Lancia|Kappa': 'k', 'MINI|Countryman': 'mini_countryman', 'MINI|Clubman': 'mini_clubman',
+      'BMW|M2': null, 'Nissan|Skyline': null, 'Saab|99': null, 'Skoda|Enyaq': null, 'Volvo|940': null
     }
   };
 
