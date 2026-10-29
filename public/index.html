@@ -80,22 +80,32 @@
       </div>
     </form>
 
-    <div class="chips-row" id="quickChips"></div>
-    <div class="chips-row" id="savedSearches"></div>
-    <div class="chips-row" id="recentSearches"></div>
+    <!-- scorciatoie e ricerche fatte: due blocchi con titolo, una riga ciascuno -->
+    <section class="block">
+      <h3 class="block-title">Scorciatoie</h3>
+      <div class="chips-row" id="quickChips"></div>
+    </section>
+    <section class="block" id="blockMine" hidden>
+      <h3 class="block-title">Le tue ricerche</h3>
+      <div class="chips-row"><span class="contents" id="savedSearches"></span><span class="contents" id="recentSearches"></span></div>
+    </section>
 
-    <div class="feed-head">
+    <!-- feed: titolo, scelta del tipo, filtri compatti -->
+    <section class="feed-sec">
+      <div class="sec-head">
+        <h2>Da scoprire</h2>
+        <button class="ibtn sm shuffle" id="btnFeedRefresh" type="button" aria-label="Mescola" title="Mescola" data-icon="shuffle"></button>
+      </div>
       <div class="seg" id="feedMode" role="tablist" aria-label="Cosa mostrare">
         <button type="button" data-mode="mix" data-icon="gem">Consigliati</button>
         <button type="button" data-mode="recenti" data-icon="clock">Più recenti</button>
       </div>
-      <button class="ibtn sm shuffle" id="btnFeedRefresh" type="button" aria-label="Mescola" title="Mescola" data-icon="shuffle"></button>
-    </div>
-    <div class="feed-filters">
-      <label>Budget max<select id="feedPmax" data-list="price"><option value="">Qualsiasi</option></select></label>
-      <label>Km max<select id="feedKm" data-list="km"><option value="">Qualsiasi</option></select></label>
-      <label>Dove<select id="feedArea"><option value="eu">Italia + estero</option><option value="it">Solo Italia</option></select></label>
-    </div>
+      <div class="pills">
+        <label class="pill"><select id="feedPmax" data-list="price" aria-label="Prezzo massimo"><option value="">Prezzo: tutti</option></select></label>
+        <label class="pill"><select id="feedKm" data-list="km" aria-label="Km massimi"><option value="">Km: tutti</option></select></label>
+        <label class="pill"><select id="feedArea" aria-label="Dove"><option value="eu">Ovunque</option><option value="it">Solo Italia</option></select></label>
+      </div>
+    </section>
     <div id="feed" class="feed"></div>
     <div id="feedMore" class="more"></div>
   </main>

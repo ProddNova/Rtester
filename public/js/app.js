@@ -344,7 +344,8 @@
   function renderSearchLists() {
     var box = $('recentSearches');
     box.innerHTML = '';
-    state.recent.forEach(function (r) {
+    $('blockMine').hidden = !state.recent.length && !state.searches.length;
+    state.recent.slice(0, 5).forEach(function (r) {
       box.appendChild(h('button', { class: 'chip plain', type: 'button', on: { click: function () { applySearch(r.s); } } }, it2('history', r.label)));
     });
     var sb = $('savedSearches');
@@ -1130,8 +1131,8 @@
   }
 
   function buildFeedControls() {
-    fillSelect($('feedPmax'), PRICES.map(function (p) { return { k: String(p), n: dots(p) + ' €' }; }));
-    fillSelect($('feedKm'), KMS.map(function (k) { return { k: String(k), n: dots(k) + ' km' }; }));
+    fillSelect($('feedPmax'), PRICES.map(function (p) { return { k: String(p), n: '≤ ' + dots(p) + ' €' }; }));
+    fillSelect($('feedKm'), KMS.map(function (k) { return { k: String(k), n: '≤ ' + (k / 1000) + 'k km' }; }));
     $('feedPmax').value = feedOpts.pmax || '';
     $('feedKm').value = feedOpts.kmmax || '';
     $('feedArea').value = feedOpts.area === 'it' ? 'it' : 'eu';

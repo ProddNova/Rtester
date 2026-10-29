@@ -73,7 +73,7 @@ Il piano gratuito di Render addormenta il server dopo 15 minuti senza visite.
   `RENDER_EXTERNAL_URL`), così resta sveglio. **Dalle 3:00 alle 8:00 (ora italiana) si ferma** e il server si riposa.
   Per spegnere la funzione: variabile `KEEPALIVE=off`.
 - `.github/workflows/sveglia.yml`: alle 8:00 GitHub chiama l'app per svegliarla (da addormentato il server non
-  può svegliarsi da solo). Usa la variabile del repo `CACCIAUTO_URL`; se manca prova `https://cacciauto.onrender.com`.
+  può svegliarsi da solo). Usa la variabile del repo `CACCIAUTO_URL`; se manca prova `https://autofind-4lhb.onrender.com`.
 
 Ore di accensione: circa 19 al giorno, quindi circa 590 al mese, dentro le 750 gratuite di Render.
 
@@ -123,7 +123,7 @@ cosa si è rotto.
 
 1. Su [render.com](https://render.com) → **New** → **Blueprint** → scegli questo repo e il branch.
 2. Render legge `render.yaml` e crea un **Web Service** Node gratuito.
-3. Ti dà un indirizzo tipo `https://cacciauto.onrender.com`.
+3. Ti dà un indirizzo tipo `https://autofind-4lhb.onrender.com`.
    (il servizio su Render si chiama ancora `cacciauto`, il vecchio nome: cambiarlo creerebbe un servizio nuovo con un
    indirizzo nuovo. Anche i dati salvati usano ancora quel nome internamente, così non si perde niente.)
 
