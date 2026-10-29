@@ -163,3 +163,13 @@ test('dettaglio Trovit: descrizione, scheda e foto grande', () => {
   assert.strictEqual(d.description, 'Vendo Saab cabrio tel');
   assert.deepStrictEqual(d.photos, ['https://img-it-2.trovit.com/ABC1/ABC1.1_12.jpg']);
 });
+
+test('Trovit: foto anche quando src non è il primo attributo, e città', () => {
+  const html = '<div>3 risultati</div><div class="item js-item " data-id="ZZ1"> <a rel="nofollow" class="rd-link" href="https://rd.clk.thribee.com/id.ZZ1/x/">' +
+    '<div class="image"><img loading="lazy" class="is_higher " src="//img-it-2.trovit.com/ZZ1/ZZ1.1_11.jpg" alt="VW"/></div>' +
+    '<div class="item-content"><h2><strong>Volkswagen</strong> <strong>Golf</strong></h2> <span class="address"><svg></svg>Udine</span>' +
+    '<div class="price"> <meta content="7500"/></div><ul class="info"><li class="info-item"> <span>120.000</span> <br>Kms </li></ul></div></a></div>';
+  const it = TV.parse(html).items[0];
+  assert.strictEqual(it.image, 'https://img-it-2.trovit.com/ZZ1/ZZ1.1_11.jpg');
+  assert.strictEqual(it.city, 'Udine');
+});

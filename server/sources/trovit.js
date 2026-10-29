@@ -44,7 +44,9 @@ function parse(html) {
   const items = starts.map((st, i) => {
     const c = html.slice(st.at, i + 1 < starts.length ? starts[i + 1].at : st.at + 8000);
     const href = (c.match(/<a [^>]*class="rd-link"[^>]*href="([^"]+)"/) || [])[1] || '';
-    const img = (c.match(/<img src="([^"]+)"/) || [])[1] || '';
+    // l'attributo src può non essere il primo (es. <img loading="lazy" class=... src=...>)
+    const img = (c.match(/<img\b[^>]*?\ssrc="([^"]+)"/) || [])[1] || '';
+    const city = text((c.match(/<span class="address">([\s\S]*?)<\/span>/) || [])[1]);
     const title = text((c.match(/<h2>([\s\S]*?)<\/h2>/) || [])[1]);
     const info = {};
     c.replace(/<li class="info-item">\s*<span>([^<]*)<\/span>\s*<br>\s*([A-Za-z]+)/g, (x, v, k) => { info[k.toLowerCase()] = v; });
@@ -64,7 +66,7 @@ function parse(html) {
       fuelLabel: '',
       gear: '',
       cv: num((title.match(/(\d{2,3})\s*cv\b/i) || [])[1]),
-      city: '',
+      city,
       seller: agency ? 'concessionario' : (/\bprivato\b/i.test(snippet) ? 'privato' : ''),
       image: img ? (img.startsWith('//') ? 'https:' + img : img) : '',
       photos: img ? 1 : 0,
