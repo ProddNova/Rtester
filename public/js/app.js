@@ -23,7 +23,8 @@
     hidden: lget('hidden', {}),      // annunci nascosti
     visited: lget('visited', {}),    // annunci aperti
     recent: lget('recent', []),
-    saved: [], savedLoaded: false, persistent: true,
+    saved: [], savedLoaded: false,
+    mirror: lget('mirror', { saved: { items: [], tomb: {} }, searches: { items: [], tomb: {} }, boot: {} }),
     searches: [],
     showHidden: false
   };
@@ -87,7 +88,7 @@
 
   function buildForm() {
     var f = $('searchForm');
-    fillSelect($('fMake'), D.MAKES.map(function (m) { return { k: m.n, n: m.n }; }));
+    fillMakes();
     fillSelect($('fFuel'), D.FUELS);
     fillSelect($('fGear'), D.GEARS);
     fillSelect($('fBody'), D.BODIES);
@@ -105,19 +106,81 @@
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       state.search = readForm();
+      $('adv').hidden = true;
       results.sig = ''; // "Cerca" ricarica sempre
       go('#/risultati');
     });
-    $('btnReset').addEventListener('click', function () { writeForm(EMPTY); });
+    $('btnReset').addEventListener('click', function () { writeForm(EMPTY); updateMoreCount(); });
+    $('btnMore').addEventListener('click', function () { $('adv').hidden = false; });
+    $('btnAdvClose').addEventListener('click', function () { $('adv').hidden = true; updateMoreCount(); });
+    $('adv').addEventListener('click', function (e) { if (e.target === $('adv')) { $('adv').hidden = true; updateMoreCount(); } });
+    f.addEventListener('change', updateMoreCount);
+    QUICK.forEach(function (q) {
+      $('quickChips').appendChild(h('button', { class: 'chip plain quickc', type: 'button', text: q.n, on: { click: function () { applySearch(q.s); } } }));
+    });
   }
 
+  var ADV_FIELDS = ['kw', 'pmin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region'];
+  function updateMoreCount() {
+    var f = $('searchForm'), n = 0;
+    ADV_FIELDS.forEach(function (k) { if (String(f.elements[k].value || '').trim()) n++; });
+    if (f.elements.europe.checked) n++;
+    $('moreCount').hidden = !n;
+    $('moreCount').textContent = n;
+  }
+
+  // Ricerche al volo, senza mettere filtri a mano
+  var QUICK = [
+    { n: '💸 Sotto 2.000 €', s: { pmax: '2000' } },
+    { n: '💶 Sotto 5.000 €', s: { pmax: '5000' } },
+    { n: '📼 Youngtimer (80-90)', s: { ymin: '1980', ymax: '1999' } },
+    { n: '☀️ Cabrio', s: { body: 'cabrio' } },
+    { n: '🏎️ Coupé', s: { body: 'coupe' } },
+    { n: '🔥 200+ CV', s: { cvmin: '200' } },
+    { n: '🏔️ SUV e 4x4', s: { body: 'suv', pmax: '15000' } },
+    { n: '🔰 Neopatentati', s: { cvmax: '95', ymin: '2010', pmax: '10000' } },
+    { n: '🧳 SW diesel', s: { body: 'sw', fuel: 'diesel', pmax: '8000' } },
+    { n: '🙋 Solo privati', s: { seller: 'privato' } }
+  ];
+
+  // Elenco completo marche/modelli (models.js, da AutoScout24); se manca, la lista ridotta di data.js
+  var POPULAR_MAKES = ['Fiat', 'Volkswagen', 'Ford', 'Opel', 'Peugeot', 'Renault', 'Toyota', 'Audi', 'BMW', 'Mercedes-Benz', 'Alfa Romeo', 'Lancia', 'Citroen', 'Jeep', 'Dacia', 'Kia', 'Hyundai', 'Nissan', 'Skoda', 'Seat', 'MINI', 'Smart', 'Volvo', 'Mazda', 'Suzuki', 'Land Rover', 'Porsche', 'Honda', 'Subaru', 'Saab'];
+  function makesList() {
+    if (window.CA_MODELS && window.CA_MODELS.makes) return window.CA_MODELS.makes.map(function (m) { return { n: m.n, g: m.g || [], m: (m.m || []).map(function (x) { return x[0]; }) }; });
+    return D.MAKES.map(function (m) { return { n: m.n, g: [], m: m.m }; });
+  }
+  var MAKES = null;
+  function fillMakes() {
+    MAKES = makesList();
+    var sel = $('fMake');
+    var names = MAKES.map(function (m) { return m.n; });
+    var pop = POPULAR_MAKES.filter(function (n) { return names.indexOf(n) !== -1; });
+    var g1 = h('optgroup', { label: 'Più cercate' });
+    pop.forEach(function (n) { g1.appendChild(h('option', { value: n, text: n })); });
+    var g2 = h('optgroup', { label: 'Tutte le marche (' + names.length + ')' });
+    names.slice().sort(function (a, b) { return a.localeCompare(b, 'it'); }).forEach(function (n) { g2.appendChild(h('option', { value: n, text: n })); });
+    sel.appendChild(g1);
+    sel.appendChild(g2);
+  }
   function fillModels(make, value) {
     var sel = $('fModel');
     sel.innerHTML = '';
     sel.appendChild(h('option', { value: '', text: make ? 'Tutti i modelli' : 'Scegli prima la marca' }));
-    var mk = D.MAKES.filter(function (m) { return m.n === make; })[0];
+    var mk = (MAKES || []).filter(function (m) { return m.n === make; })[0];
     sel.disabled = !mk;
-    if (mk) mk.m.forEach(function (m) { sel.appendChild(h('option', { value: m, text: m })); });
+    if (mk) {
+      var byName = function (a, b) { return a.localeCompare(b, 'it', { numeric: true }); };
+      if (mk.g.length) {
+        var g = h('optgroup', { label: 'Gamme' });
+        mk.g.slice().sort(byName).forEach(function (m) { g.appendChild(h('option', { value: m, text: m })); });
+        sel.appendChild(g);
+      }
+      var g2 = h('optgroup', { label: 'Modelli' });
+      mk.m.slice().sort(byName).forEach(function (m) { g2.appendChild(h('option', { value: m, text: m })); });
+      sel.appendChild(g2);
+    }
+    // un modello salvato che non è più in elenco: lo aggiungiamo per non perderlo
+    if (value && !Array.prototype.some.call(sel.options, function (o) { return o.value === value; })) sel.appendChild(h('option', { value: value, text: value }));
     sel.value = value || '';
   }
 
@@ -137,6 +200,7 @@
     FORM_FIELDS.forEach(function (k) { if (k !== 'model') f.elements[k].value = s[k] || ''; });
     fillModels(s.make, s.model);
     f.elements.europe.checked = !!s.europe;
+    updateMoreCount();
   }
 
   function summary(s) {
@@ -172,9 +236,8 @@
     var box = $('recentSearches');
     box.innerHTML = '';
     state.recent.forEach(function (r) {
-      box.appendChild(h('button', { class: 'chip plain', type: 'button', on: { click: function () { applySearch(r.s); } } }, [h('span', { text: r.label })]));
+      box.appendChild(h('button', { class: 'chip plain', type: 'button', on: { click: function () { applySearch(r.s); } } }, [h('span', { text: '🕘 ' + r.label })]));
     });
-    $('recentBox').hidden = !state.recent.length;
     var sb = $('savedSearches');
     sb.innerHTML = '';
     state.searches.forEach(function (x) {
@@ -183,7 +246,7 @@
         h('button', { class: 'x', type: 'button', 'aria-label': 'Elimina', text: '✕', on: { click: function () { removeSearch(x); } } })
       ]));
     });
-    $('savedSearchesBox').hidden = !state.searches.length;
+
   }
 
   function applySearch(s) {
@@ -194,14 +257,14 @@
 
   // ---------------------------------------------------------------- ricerche salvate (condivise)
   function loadSearches() {
-    api('api/searches').then(function (j) { state.searches = j.items || []; renderSearchLists(); }).catch(function () { /* server giù */ });
+    api('api/searches').then(function (j) { sync('searches', j); }).catch(function () { /* server giù */ });
   }
   function saveSearch() {
     var name = h('input', { type: 'text', value: summary(state.search).slice(0, 60), maxlength: 80 });
     dialog('Salva ricerca', [h('p', { class: 'muted', text: 'La vedranno tutti quelli che usano CacciAuto.' }), h('label', { text: 'Nome' }), name], [
       { label: 'Salva', cta: true, run: function () {
         post('api/searches', { action: 'add', name: name.value, search: compact(state.search) })
-          .then(function (j) { state.searches = j.items; renderSearchLists(); toast('⭐ Ricerca salvata'); })
+          .then(function (j) { sync('searches', j); toast('⭐ Ricerca salvata'); })
           .catch(function (e) { toast(e.message); });
       } }
     ]);
@@ -209,7 +272,7 @@
   function removeSearch(x) {
     dialog('Elimino "' + x.name + '"?', [h('p', { class: 'muted', text: 'Sparisce per tutti.' })], [
       { label: 'Elimina', cta: true, run: function () {
-        post('api/searches', { action: 'remove', id: x.id }).then(function (j) { state.searches = j.items; renderSearchLists(); }).catch(function (e) { toast(e.message); });
+        post('api/searches', { action: 'remove', id: x.id }).then(function (j) { sync('searches', j); }).catch(function (e) { toast(e.message); });
       } }
     ]);
   }
@@ -461,6 +524,38 @@
     new IntersectionObserver(function (entries) {
       if (entries[0].isIntersecting && $('view-results').classList.contains('active')) loadMore();
     }, { rootMargin: '600px' }).observe($('more'));
+    new IntersectionObserver(function (entries) {
+      if (entries[0].isIntersecting && $('view-search').classList.contains('active') && feed.page > 0) loadFeed();
+    }, { rootMargin: '900px' }).observe($('feedMore'));
+  }
+
+  // ---------------------------------------------------------------- condivisione di un annuncio
+  // Il link apre l'annuncio dentro CacciAuto (foto, scheda...), non sul sito di origine.
+  function appLink(url) { return location.origin + location.pathname + '#/annuncio?u=' + encodeURIComponent(url); }
+  function shareAd(a) {
+    var link = appLink(a.url);
+    var title = (a.title || 'Auto') + (a.version ? ' ' + a.version : '');
+    var text = '🚗 ' + title + ' · ' + eur(a.price) + [a.year, kmf(a.km)].filter(Boolean).map(function (x) { return ' · ' + x; }).join('');
+    if (navigator.share) {
+      navigator.share({ title: title, text: text, url: link }).catch(function () { /* annullato */ });
+      return;
+    }
+    var ta = h('textarea', { readonly: true }, [text + '\n' + link]);
+    dialog('Condividi', [ta], [
+      { label: 'Copia link', keep: true, run: function () { copyText(text + '\n' + link); } },
+      { label: 'WhatsApp', cta: true, run: function () { window.open('https://wa.me/?text=' + encodeURIComponent(text + '\n' + link), '_blank', 'noopener'); } }
+    ]);
+  }
+  function copyText(t) {
+    var done = function () { toast('Link copiato'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(done, function () { legacyCopy(t); done(); });
+    else { legacyCopy(t); done(); }
+  }
+  function legacyCopy(t) {
+    var ta = h('textarea', { style: 'position:fixed;opacity:0' }, [t]);
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e) { /* niente */ }
+    ta.remove();
   }
 
   // ---------------------------------------------------------------- dettaglio annuncio
@@ -490,6 +585,40 @@
       view.innerHTML = '';
       view.appendChild(renderAd(base, null, false, url, false, e.message));
     });
+  }
+
+  // "Testo in tedesco · Traduci": traduce sul server, poi si può tornare all'originale
+  function translateBar(original, lang, target) {
+    var bar = h('div', { class: 'tr-bar' });
+    var translated = null, showing = false;
+    var btn = h('button', { class: 'link', type: 'button', text: '🌐 Traduci in italiano' });
+    bar.appendChild(h('span', { text: 'Testo in ' + (window.CA_LANG.NAMES[lang] || lang) }));
+    bar.appendChild(btn);
+    btn.addEventListener('click', function () {
+      if (translated) {
+        showing = !showing;
+        target.textContent = showing ? translated : original;
+        btn.textContent = showing ? 'Mostra originale' : '🌐 Traduci in italiano';
+        return;
+      }
+      btn.textContent = 'Traduco…';
+      btn.disabled = true;
+      post('api/translate', { text: original, from: lang }).then(function (r) {
+        translated = r.text; showing = true;
+        target.textContent = translated;
+        target.classList.remove('clamp');
+        btn.textContent = 'Mostra originale';
+        btn.disabled = false;
+      }).catch(function (e) {
+        btn.disabled = false;
+        btn.textContent = '🌐 Traduci in italiano';
+        bar.appendChild(h('span', null, [
+          'Non riesco (' + e.message + '). ',
+          h('a', { class: 'link', href: 'https://translate.google.com/?sl=auto&tl=it&op=translate&text=' + encodeURIComponent(original.slice(0, 1800)), target: '_blank', rel: 'noopener', text: 'Apri Google Traduttore ↗' })
+        ]));
+      });
+    });
+    return bar;
   }
 
   function spec(label, value) {
@@ -545,6 +674,7 @@
     wrap.appendChild(h('div', { class: 'ad-actions' }, [
       h('a', { class: 'sbtn wide', href: openUrl, target: '_blank', rel: 'noopener', text: 'Apri su ' + siteName + ' ↗' }),
       saveBtn,
+      h('button', { class: 'sbtn ghost', type: 'button', text: '📤 Condividi', on: { click: function () { shareAd(Object.assign({}, base, ad || {}, { url: base.url })); } } }),
       (ad && ad.seller && ad.seller.phones && ad.seller.phones[0]) ? h('a', { class: 'sbtn ghost', href: 'tel:' + ad.seller.phones[0].tel, text: '📞 Chiama' }) : null,
       (ad && ad.seller && ad.seller.whatsapp) ? h('a', { class: 'sbtn ghost', href: 'https://wa.me/' + String(ad.seller.whatsapp).replace(/\D/g, ''), target: '_blank', rel: 'noopener', text: 'WhatsApp' }) : null
     ]));
@@ -594,7 +724,10 @@
 
     if (ad && ad.description) {
       var desc = h('div', { class: 'desc' + (ad.description.length > 600 ? ' clamp' : ''), text: ad.description });
-      var sec = h('div', { class: 'section' }, [h('h3', { text: 'Descrizione' }), desc]);
+      var sec = h('div', { class: 'section' }, [h('h3', { text: 'Descrizione' })]);
+      var lang = window.CA_LANG ? window.CA_LANG.detect(ad.description) : 'it';
+      if (lang !== 'it') sec.appendChild(translateBar(ad.description, lang, desc));
+      sec.appendChild(desc);
       if (ad.description.length > 600) {
         sec.appendChild(h('button', { class: 'link', type: 'button', text: 'Mostra tutto', on: { click: function () { desc.classList.remove('clamp'); this.remove(); } } }));
       }
@@ -623,16 +756,106 @@
     return wrap;
   }
 
+  // ---------------------------------------------------------------- feed della home
+  var feed = { items: [], shown: {}, page: 0, start: 0, loading: false, done: false, error: false };
+  function loadFeed(reset) {
+    if (feed.loading) return;
+    if (reset) {
+      feed = { items: [], shown: {}, page: 0, start: reset === 'shuffle' ? Math.floor(Math.random() * 40) : 0, loading: false, done: false, error: false };
+      $('feed').innerHTML = '';
+    }
+    feed.loading = true;
+    var more = $('feedMore');
+    more.innerHTML = '';
+    for (var i = 0; i < (feed.page ? 1 : 4); i++) (feed.page ? more : $('feed')).appendChild(h('div', { class: 'skel tall' }));
+    api('api/feed?page=' + (feed.start + feed.page)).then(function (j) {
+      feed.loading = false;
+      feed.page++;
+      Array.prototype.forEach.call($('feed').querySelectorAll('.skel'), function (x) { x.remove(); });
+      more.innerHTML = '';
+      var before = feed.items.length;
+      feed.items = X.mergeListings(feed.items, j.items.map(function (x) { x.key = keyOf(x); return x; }));
+      feed.items.slice(before).forEach(function (it) { byUrl[it.url] = it; $('feed').appendChild(feedCard(it)); });
+      if (feed.items.length === before && feed.page < 6) setTimeout(function () { loadFeed(); }, 50); // pagina vuota: avanti
+    }).catch(function () {
+      feed.loading = false;
+      Array.prototype.forEach.call($('feed').querySelectorAll('.skel'), function (x) { x.remove(); });
+      more.innerHTML = '';
+      more.appendChild(h('div', { class: 'empty' }, ['Non riesco a caricare il feed (il server si sta svegliando?). ',
+        h('button', { class: 'link', type: 'button', text: 'Riprova', on: { click: function () { loadFeed(); } } })]));
+    });
+  }
+
+  function feedCard(it) {
+    var meta = [it.year, kmf(it.km), cap(it.fuel), it.cv ? it.cv + ' CV' : ''].filter(Boolean).join(' · ');
+    var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
+    (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
+    if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
+    if (it.city) tags.push(h('span', { text: '📍 ' + it.city }));
+    var why = it.reason === 'affare' ? '🔥 ' + (it.label || 'Affare') : '🦄 ' + (it.label || 'Da appassionati');
+    return h('a', { class: 'fcard', href: '#/annuncio?u=' + encodeURIComponent(it.url) }, [
+      h('div', { class: 'ph' }, [
+        it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.remove(); } } }) : '🚗',
+        h('span', { class: 'why ' + (it.reason || ''), text: why }),
+        h('span', { class: 'pr-over', text: eur(it.price) })
+      ]),
+      h('div', { class: 'bd' }, [
+        h('div', { class: 'tt' }, [it.title, it.version ? h('small', { text: ' · ' + it.version }) : null]),
+        meta ? h('div', { class: 'mt', text: meta }) : null,
+        it.fact ? h('div', { class: 'fact', text: '💡 ' + it.fact }) : null,
+        h('div', { class: 'ft' }, tags)
+      ]),
+      starBtn(it)
+    ]);
+  }
+
   // ---------------------------------------------------------------- salvati (condivisi)
   function loadSaved() {
-    return api('api/saved').then(function (j) {
+    return api('api/saved').then(function (j) { sync('saved', j); }).catch(function () {
+      // server giù: mostriamo la copia sul telefono
+      if (!state.savedLoaded && state.mirror.saved.items.length) { state.saved = state.mirror.saved.items; state.savedLoaded = true; renderSavedCount(); if (currentView() === 'saved') renderSaved(); }
+    });
+  }
+  /* Copia dei salvati/ricerche sul telefono.
+   * Il server gratuito può ripartire da zero: se il suo "bootId" è cambiato rimandiamo la nostra copia,
+   * il server la unisce a quelle degli altri telefoni e nessuno perde niente. */
+  function sync(name, j) {
+    var m = state.mirror;
+    var local = m[name] || { items: [], tomb: {} };
+    var fresh = j.bootId && m.boot[name] !== j.bootId;
+    var hasLocal = local.items.length || Object.keys(local.tomb || {}).length;
+    if (fresh && hasLocal && !syncing[name]) {
+      syncing[name] = true;
+      post('api/' + name, { action: 'restore', items: local.items, tomb: local.tomb })
+        .then(function (r) { m.boot[name] = r.bootId; syncing[name] = false; apply(name, r); })
+        .catch(function () { syncing[name] = false; });
+      // nel frattempo mostriamo l'unione di quello che sappiamo
+      apply(name, { items: mergeLocal(j.items || [], local.items, name), tomb: j.tomb }, true);
+      return;
+    }
+    if (j.bootId) m.boot[name] = j.bootId;
+    apply(name, j);
+  }
+  var syncing = {};
+  function mergeLocal(server, local, name) {
+    var key = name === 'saved' ? function (x) { return x.key; } : function (x) { return x.id; };
+    var have = {};
+    server.forEach(function (x) { have[key(x)] = 1; });
+    return server.concat(local.filter(function (x) { return !have[key(x)]; }));
+  }
+  function apply(name, j, temporary) {
+    if (!temporary) { state.mirror[name] = { items: j.items || [], tomb: j.tomb || {} }; lset('mirror', state.mirror); }
+    if (name === 'saved') {
       state.saved = j.items || [];
-      state.persistent = j.persistent !== false;
       state.savedLoaded = true;
       renderSavedCount();
       if (currentView() === 'saved') renderSaved();
-    }).catch(function () { /* server giù: riproveremo */ });
+    } else {
+      state.searches = j.items || [];
+      renderSearchLists();
+    }
   }
+
   var refreshTimer;
   function refreshSavedSoon() { clearTimeout(refreshTimer); refreshTimer = setTimeout(loadSaved, 1500); }
 
@@ -649,7 +872,7 @@
       fuel: it.fuel, city: it.city, image: it.image, alts: (it.also || []).map(function (a) { return a.url; })
     } });
     return req.then(function (j) {
-      state.saved = j.items;
+      sync('saved', j);
       renderSavedCount();
       toast(on ? 'Tolto dai salvati' : '⭐ Salvato (lo vedono tutti)');
     }).catch(function (e) { toast('Non salvato: ' + e.message); });
@@ -666,7 +889,7 @@
     var d = X.findDuplicate(state.saved, Object.assign({ key: X.listingKey(url) }, item));
     if (d && d.type === 'exact') { msg.hidden = false; msg.textContent = 'Già nei salvati: ' + (d.item.title || d.item.url); return; }
     post('api/saved', { action: 'add', item: item }).then(function (j) {
-      state.saved = j.items;
+      sync('saved', j);
       $('addUrl').value = '';
       renderSavedCount(); renderSaved();
       toast('⭐ Aggiunto');
@@ -680,8 +903,6 @@
 
   function renderSaved() {
     var box = $('saved');
-    $('storeWarn').hidden = state.persistent;
-    $('storeWarn').textContent = '⚠️ I salvati per ora stanno in un archivio temporaneo: si cancellano quando il server si riavvia. Per renderli permanenti collega il database gratuito (istruzioni nel README, sezione "Salvati permanenti").';
     var list = state.saved.slice();
     var srt = $('savedSort').value;
     if (srt === 'prezzo') list.sort(function (a, b) { return (a.price || 1e12) - (b.price || 1e12); });
@@ -719,6 +940,7 @@
       h('div', { class: 'row2' }, [
         h('button', { class: 'link', type: 'button', text: x.note ? '✎ Modifica nota' : '✎ Aggiungi nota', on: { click: function (e) { e.preventDefault(); editNote(x); } } }),
         h('span', { class: 'sp' }),
+        h('button', { class: 'link', type: 'button', text: '📤 Condividi', on: { click: function (e) { e.preventDefault(); shareAd(x); } } }),
         h('button', { class: 'link danger', type: 'button', text: 'Rimuovi', on: { click: function (e) { e.preventDefault(); removeSaved(x); } } })
       ])
     ]);
@@ -728,14 +950,14 @@
   function editNote(x) {
     var ta = h('textarea', { maxlength: 500, placeholder: 'es. passaruota da controllare, trattabile a 4.000' }, [x.note || '']);
     dialog('Nota', [ta], [{ label: 'Salva', cta: true, run: function () {
-      post('api/saved', { action: 'note', key: x.key, note: ta.value }).then(function (j) { state.saved = j.items; renderSaved(); }).catch(function (e) { toast(e.message); });
+      post('api/saved', { action: 'note', key: x.key, note: ta.value }).then(function (j) { sync('saved', j); renderSaved(); }).catch(function (e) { toast(e.message); });
     } }]);
   }
 
   function removeSaved(x) {
     dialog('Rimuovo dai salvati?', [h('p', { class: 'muted', text: '"' + (x.title || x.url) + '" sparisce per tutti.' })], [
       { label: 'Rimuovi', cta: true, run: function () {
-        post('api/saved', { action: 'remove', key: x.key }).then(function (j) { state.saved = j.items; renderSavedCount(); renderSaved(); }).catch(function (e) { toast(e.message); });
+        post('api/saved', { action: 'remove', key: x.key }).then(function (j) { sync('saved', j); renderSavedCount(); renderSaved(); }).catch(function (e) { toast(e.message); });
       } }
     ]);
   }
@@ -770,7 +992,7 @@
     var act = $('dlgActions');
     act.innerHTML = '';
     (actions || []).forEach(function (a) {
-      act.appendChild(h('button', { type: 'button', class: 'sbtn' + (a.cta ? '' : ' ghost'), text: a.label, on: { click: function () { if (a.run) a.run(); dlg.close(); } } }));
+      act.appendChild(h('button', { type: 'button', class: 'sbtn' + (a.cta ? '' : ' ghost'), text: a.label, on: { click: function () { if (a.run) a.run(); if (!a.keep) dlg.close(); } } }));
     });
     if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
   }
@@ -825,11 +1047,20 @@
     writeForm(state.search);
     renderSearchLists();
     loadSearches();
-    window.scrollTo(0, 0);
+    if (!feed.page && !feed.loading) loadFeed(true);
+    window.scrollTo(0, scrollPos.search || 0);
+  }
+
+  // Niente zoom con due dita (iOS ignora user-scalable=no, quindi serve anche questo)
+  function noPinchZoom() {
+    ['gesturestart', 'gesturechange'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
+    document.addEventListener('touchmove', function (e) { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
   }
 
   function init() {
+    noPinchZoom();
     buildForm();
+    $('btnFeedRefresh').addEventListener('click', function () { loadFeed('shuffle'); });
     writeForm(state.search);
     $('sort').addEventListener('change', function () {
       state.search.sort = $('sort').value;

@@ -26,7 +26,7 @@ function norm(s) { return SITES.strip(s).toLowerCase().replace(/[^a-z0-9]/g, '')
 
 // I filtri valgono per tutti i siti: se un sito li ignora, li applichiamo qui.
 // Un dato mancante nell'annuncio non lo esclude (meglio una in più che una persa).
-function matches(it, s, siteId) {
+function matches(it, s, siteId, strictModel) {
   const pmin = n(s.pmin), pmax = n(s.pmax), ymin = n(s.ymin), ymax = n(s.ymax), kmmin = n(s.kmmin), kmmax = n(s.kmmax), cvmin = n(s.cvmin), cvmax = n(s.cvmax);
   if (pmin && it.price < pmin) return false;
   if (pmax && it.price > pmax) return false;
@@ -41,7 +41,7 @@ function matches(it, s, siteId) {
   if (s.gear && it.gear && it.gear !== s.gear) return false;
   const text = norm(it.title + ' ' + it.version);
   // il sito non conosce il modello e ha cercato solo la marca: filtriamo noi sul titolo
-  if (s.model && SITES.modelDropped(siteId, s) && text.indexOf(norm(s.model)) === -1) return false;
+  if (s.model && (strictModel || SITES.modelDropped(siteId, s)) && text.indexOf(norm(s.model)) === -1) return false;
   if (s.kw) {
     const words = s.kw.split(/\s+/).map(norm).filter((w) => w.length >= 2);
     if (words.some((w) => text.indexOf(w) === -1)) return false;
@@ -63,15 +63,17 @@ async function fromSource(src, s, page) {
   }
   try {
     // alcuni siti hanno un link "preciso" e uno di riserva (se il primo non esiste: 404 = pagina vuota)
-    const candidates = src.urls ? src.urls(s, page) : [url];
+    const candidates = (src.urls ? src.urls(s, page) : [url]).map((c) => (typeof c === 'string' ? { u: c } : c));
     let html = '';
-    for (const u of candidates) {
-      html = await getPage(u);
-      out.url = u;
+    let strict = false;
+    for (const c of candidates) {
+      html = await getPage(c.u);
+      out.url = c.u;
+      strict = !!c.strict;
       if (html) break;
     }
     const r = src.parse(html);
-    const items = r.items.filter((it) => matches(it, s, src.id));
+    const items = r.items.filter((it) => matches(it, s, src.id, strict));
     out.count = items.length; out.total = r.total; out.pages = r.pages;
     return { out, items };
   } catch (e) {

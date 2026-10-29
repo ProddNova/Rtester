@@ -6,8 +6,13 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 
 ## Cosa fa
 
-- **Ricerca a menu**, come sui siti di auto: marca, modello, versione/parole chiave (es. GTI, Aero), prezzo da/a,
-  anno da/a, km da/a, alimentazione, cambio, carrozzeria, privati/concessionari, potenza, regione, estero.
+- **Home da scorrere**: senza mettere filtri trovi un feed infinito di **affari** (prezzo sotto il mercato secondo
+  AutoScout24) e **auto da appassionati** (Evo, MX-5, Delta Integrale, Saab Aero…, con una curiosità su ognuna).
+- **Ricerca rapida**: marca, modello, prezzo massimo e anno minimo; tutto il resto è in "Altri filtri"
+  (versione/parole chiave, prezzo da, anno fino a, km, alimentazione, cambio, carrozzeria, privati/concessionari,
+  potenza, regione, estero). Più scorciatoie al volo: "Sotto 5.000 €", "Youngtimer", "Cabrio", "200+ CV"…
+- **Tutte le marche e i modelli**: 301 marche e oltre 5.000 modelli, presi da AutoScout24
+  (`node scripts/update-models.js` per aggiornarli).
 - **Lista unica** da 5 siti, con scorrimento infinito. Ordina per: misti, affari prima, prezzo ↑/↓, km, anno, più recenti.
 - **Affare o caro?** Ogni annuncio ha un'etichetta (Affare, Buon prezzo, Nella media, Caro, Molto basso…).
   Per AutoScout24 è la loro valutazione di mercato; per gli altri è una stima calcolata sugli annunci della ricerca
@@ -16,6 +21,10 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 - **Pagina annuncio dentro l'app**: galleria foto, scheda tecnica, descrizione completa, dotazioni, venditore
   (con telefono quando il sito lo mostra), da quanto è online, valutazione di mercato. Poi, se vuoi,
   "Apri su <sito>".
+- **Condividi** un annuncio (WhatsApp ecc.): il link apre l'annuncio dentro CacciAuto, con foto e scheda.
+- **Traduzione**: gli annunci in tedesco, francese, inglese, spagnolo o olandese hanno il pulsante
+  "Traduci in italiano" (servizio gratuito MyMemory, senza account; se finisce il limite giornaliero
+  si apre Google Traduttore).
 - **Niente doppioni**: la stessa auto su più siti (o ripubblicata dallo stesso venditore) compare una volta sola,
   con le etichette dei siti (es. `AS24 +Subito +Trovit`) e i link agli altri annunci.
 - **Salvati condivisi**: ☆ su un annuncio e lo vedono **tutti** quelli che usano l'app. Note, storico del prezzo
@@ -59,8 +68,7 @@ cosa si è rotto.
 ## Pubblicarlo su Render (gratis)
 
 1. Su [render.com](https://render.com) → **New** → **Blueprint** → scegli questo repo e il branch.
-2. Render legge `render.yaml` e crea un **Web Service** Node gratuito. Ti chiede due valori
-   (`UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`): vedi sotto. Puoi lasciarli vuoti e aggiungerli dopo.
+2. Render legge `render.yaml` e crea un **Web Service** Node gratuito.
 3. Ti dà un indirizzo tipo `https://cacciauto.onrender.com`.
 
 Ogni push sul branch ripubblica da solo. Il build esegue i test: se uno fallisce resta online la versione precedente.
@@ -69,17 +77,21 @@ fino a un minuto (l'app lo dice).
 
 Senza Blueprint: **New → Web Service**, Runtime Node, Build `npm install && npm run build`, Start `npm start`.
 
-### Salvati permanenti (database gratuito, 3 minuti)
+### Salvati condivisi: come restano salvati
 
-Su Render gratis il disco si azzera a ogni riavvio, quindi i salvati condivisi servono in un database esterno.
-CacciAuto usa **Upstash Redis** (gratis, senza carta):
+Su Render gratis il disco del server si azzera quando si riavvia (anche quando "si addormenta").
+Per non perdere niente senza database esterni:
 
-1. Vai su [upstash.com](https://upstash.com) → registrati → **Create Database** (Redis, regione Europa, piano Free).
-2. Nella pagina del database, sezione **REST API**, copia `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN`.
-3. Su Render → il servizio `cacciauto` → **Environment** → incolla i due valori → salva (riparte da solo).
+- il server tiene i salvati e le ricerche salvate;
+- **ogni telefono ne tiene una copia** sempre aggiornata;
+- quando il server riparte da zero (ha un nuovo "bootId"), ogni telefono che apre l'app gli rimanda la sua copia
+  e il server le unisce. Le cancellazioni sono ricordate, così una copia vecchia non fa ricomparire roba tolta.
 
-Finché non lo fai l'app funziona lo stesso, ma nella pagina Salvati compare un avviso: i salvati si cancellano
-quando il server si riavvia. Chiunque abbia il link dell'app può vedere e modificare i salvati condivisi.
+Si perderebbe qualcosa solo se il server si riavvia **e** tutti i telefoni hanno cancellato i dati del sito.
+Chiunque abbia il link dell'app può vedere e modificare i salvati condivisi.
+
+Facoltativo: con le variabili `UPSTASH_REDIS_REST_URL` e `UPSTASH_REDIS_REST_TOKEN` (database Upstash gratuito)
+i dati stanno anche in un database vero. Con `MYMEMORY_EMAIL` il limite giornaliero di traduzioni sale.
 
 ## In locale
 
@@ -93,18 +105,23 @@ Poi apri http://localhost:8080. Serve Node 18 o più recente. In locale i salvat
 
 ```
 public/                 il sito (HTML, CSS, JS, icone, service worker)
-  js/data.js            marche/modelli, regioni, alimentazioni, eccezioni sugli URL dei siti
+  js/data.js            regioni, alimentazioni, eccezioni sugli URL dei siti
+  js/models.js          tutte le marche e i modelli (generato da scripts/update-models.js)
+  js/lang.js            riconoscimento della lingua (per la traduzione)
   js/sites.js           URL di ricerca filtrati per ogni sito
   js/dedup.js           chiave annuncio e caccia ai doppioni (usato da sito e server)
   js/app.js             interfaccia
 server/
   index.js              server HTTP: file statici + API
   search.js             ricerca su tutti i siti, filtri, doppioni, ordinamento
+  feed.js               feed della home (affari e auto da appassionati)
+  translate.js          traduzione in italiano
   detail.js             pagina annuncio (solo siti ammessi)
   store.js              salvati e ricerche condivise (Upstash o file)
   fetch.js              download con cache e rilevamento blocchi
   sources/              un lettore per sito
 tests/                  test (node --test), senza internet
+scripts/update-models.js  aggiorna marche e modelli da AutoScout24
 render.yaml             configurazione Render
 ```
 

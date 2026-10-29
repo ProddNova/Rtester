@@ -14,10 +14,3 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # Database gratuito per i salvati condivisi (vedi README, "Salvati permanenti").
-      # Render li chiede alla creazione: se li lasci vuoti l'app funziona lo stesso,
-      # ma i salvati si cancellano a ogni riavvio del server.
-      - key: UPSTASH_REDIS_REST_URL
-        sync: false
-      - key: UPSTASH_REDIS_REST_TOKEN
-        sync: false

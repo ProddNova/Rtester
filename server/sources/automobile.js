@@ -99,4 +99,11 @@ function detail(html) {
   };
 }
 
-module.exports = { id: 'automobile', name: 'Automobile.it', url, parse, detail };
+// Se il modello non esiste su Automobile.it (404) si cerca la sola marca e si filtra per nome.
+function urls(search, page) {
+  const out = [{ u: url(search, page) }];
+  if (search.make && search.model) out.push({ u: url(Object.assign({}, search, { model: '' }), page), strict: true });
+  return out;
+}
+
+module.exports = { id: 'automobile', name: 'Automobile.it', url, urls, parse, detail };

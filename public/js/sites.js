@@ -6,6 +6,21 @@
  */
 (function (root) {
   var D = root.CA_DATA || (typeof require !== 'undefined' ? require('./data.js') : null);
+  var M = root.CA_MODELS || (typeof require !== 'undefined' ? (function () { try { return require('./models.js'); } catch (e) { return null; } })() : null);
+
+  // Codici AutoScout24 di marca/modello (dall'elenco completo in models.js)
+  function asIds(make, model) {
+    if (!M || !make) return null;
+    var mk = null;
+    for (var i = 0; i < M.makes.length; i++) if (M.makes[i].n === make) { mk = M.makes[i]; break; }
+    if (!mk) return null;
+    var out = { make: mk.id, model: null, group: false };
+    if (model) {
+      if ((mk.g || []).indexOf(model) !== -1) out.group = true;
+      else for (var j = 0; j < (mk.m || []).length; j++) if (mk.m[j][0] === model) { out.model = mk.m[j][1]; break; }
+    }
+    return out;
+  }
 
   function strip(s) {
     return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -98,7 +113,13 @@
         var BODY = { citycar: '1', cabrio: '2', coupe: '3', suv: '4', sw: '5', berlina: '6' };
         var SORT = { prezzo: ['price', '0'], recenti: ['age', '1'], km: ['mileage', '0'] };
         var path = 'https://www.autoscout24.it/lst';
-        if (s.make) {
+        var ids = asIds(s.make, s.model);
+        var mmmv = '';
+        if (ids && (!s.model || ids.model)) {
+          // codici esatti: marca sola o marca + modello singolo (es. BMW M3)
+          mmmv = ids.make + '|' + (ids.model || '') + '||';
+        } else if (s.make) {
+          // gruppi di modelli (es. "Serie 3") e marche non in elenco: nomi nel percorso
           path += '/' + makeSlug('autoscout', s.make);
           var asm = modelSlug('autoscout', s.make, s.model);
           if (asm) path += '/' + asm;
@@ -108,6 +129,7 @@
         var cvToKw = function (cv) { var n = num(cv); return n ? Math.round(n / 1.36) : ''; };
         return path + qs({
           atype: 'C',
+          mmmv: mmmv,
           version: s.kw || '',
           cy: s.europe ? 'D,A,B,E,F,I,L,NL' : 'I',
           damaged_listing: 'exclude',

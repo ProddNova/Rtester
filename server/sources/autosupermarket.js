@@ -132,4 +132,11 @@ function detail(html) {
   };
 }
 
-module.exports = { id: 'autosupermarket', name: 'AutoSuperMarket', url, parse, detail };
+// Se il modello non esiste su AutoSuperMarket (404) si cerca la sola marca e si filtra per nome.
+function urls(search, page) {
+  const out = [{ u: url(search, page) }];
+  if (search.make && search.model) out.push({ u: url(Object.assign({}, search, { model: '' }), page), strict: true });
+  return out;
+}
+
+module.exports = { id: 'autosupermarket', name: 'AutoSuperMarket', url, urls, parse, detail };

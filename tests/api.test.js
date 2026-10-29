@@ -69,3 +69,36 @@ test('file statici e percorsi fuori cartella', async () => {
   assert.strictEqual((await fetch(base + '/%2e%2e/package.json')).status, 404);
   assert.strictEqual((await fetch(base + '/api/health')).status, 200);
 });
+
+test('salvati: un telefono rimette a posto quello che il server ha perso (senza resuscitare i cancellati)', async () => {
+  const a = { url: 'https://www.subito.it/auto/saab-9-3-genova-111111111.htm', title: 'Saab A', price: 3000, savedAt: Date.now() - 5000, history: [{ p: 3500, t: Date.now() - 9000 }, { p: 3000, t: Date.now() - 5000 }], note: 'bella' };
+  const b = { url: 'https://www.subito.it/auto/saab-9-3-genova-222222222.htm', title: 'Saab B', price: 2000, savedAt: Date.now() - 5000 };
+  let j = await (await post('/api/saved', { action: 'restore', items: [a, b], tomb: { 'subito:222222222': Date.now() } })).json();
+  assert.deepStrictEqual(j.items.map((x) => x.title), ['Saab A'], 'B era stato cancellato dopo il salvataggio');
+  assert.strictEqual(j.items[0].history.length, 2, 'storico prezzi conservato');
+  assert.strictEqual(j.items[0].note, 'bella');
+  assert.ok(j.bootId);
+  // un secondo telefono con un'altra auto: si uniscono
+  const c = { url: 'https://www.subito.it/auto/saab-9-5-genova-333333333.htm', title: 'Saab C', price: 5000, savedAt: Date.now() };
+  j = await (await post('/api/saved', { action: 'restore', items: [a, c] })).json();
+  assert.deepStrictEqual(j.items.map((x) => x.title).sort(), ['Saab A', 'Saab C']);
+  // rimozione: lascia la "tomba" e un ripristino vecchio non la fa ricomparire
+  j = await (await post('/api/saved', { action: 'remove', key: 'subito:333333333' })).json();
+  j = await (await post('/api/saved', { action: 'restore', items: [c] })).json();
+  assert.deepStrictEqual(j.items.map((x) => x.title), ['Saab A']);
+  // ma se lo salvo di nuovo ricompare
+  j = await (await post('/api/saved', { action: 'add', item: c })).json();
+  assert.ok(j.items.some((x) => x.title === 'Saab C'));
+});
+
+test('ricerche salvate: ripristino dal telefono', async () => {
+  const j = await (await post('/api/searches', { action: 'restore', items: [{ id: 'abc123', name: 'Saab', search: { make: 'Saab' }, savedAt: Date.now() - 1000 }] })).json();
+  assert.ok(j.items.some((x) => x.id === 'abc123' && x.search.make === 'Saab'));
+});
+
+test('compressione gzip delle risposte grandi', async () => {
+  const r = await fetch(base + '/js/models.js', { headers: { 'Accept-Encoding': 'gzip' } });
+  assert.strictEqual(r.status, 200);
+  assert.strictEqual(r.headers.get('content-encoding'), 'gzip');
+  assert.ok((await r.text()).includes('CA_MODELS'));
+});

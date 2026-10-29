@@ -2,7 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>CacciAuto</title>
   <meta name="description" content="Annunci di auto usate da AutoScout24, AutoSuperMarket, Automobile.it e Trovit in un'unica lista, senza doppioni.">
   <meta name="theme-color" content="#0e1015">
@@ -22,60 +22,62 @@
     <a class="brand" href="#/" id="brand">CacciAuto</a>
     <div class="top-title" id="topTitle"></div>
     <nav class="top-actions">
-      <a class="ibtn" href="#/" id="navSearch" aria-label="Cerca">🔍</a>
+      <a class="ibtn" href="#/" id="navSearch" aria-label="Home">🏠</a>
       <a class="ibtn" href="#/salvati" id="navSaved" aria-label="Salvati">⭐<b class="count" id="savedCount" hidden>0</b></a>
     </nav>
   </header>
 
-  <!-- ================= RICERCA ================= -->
+  <!-- ================= HOME: ricerca rapida + feed ================= -->
   <main id="view-search" class="view">
-    <form id="searchForm" autocomplete="off">
-      <section class="card">
-        <div class="grid2">
-          <label>Marca<select name="make" id="fMake"><option value="">Tutte le marche</option></select></label>
-          <label>Modello<select name="model" id="fModel" disabled><option value="">Tutti i modelli</option></select></label>
-          <label class="span2">Versione / parole chiave<input name="kw" type="text" maxlength="40" placeholder="es. GTI, Aero, Quattro, Vector" autocapitalize="off"></label>
-        </div>
-      </section>
+    <form id="searchForm" autocomplete="off" class="quick card">
+      <div class="grid2">
+        <label>Marca<select name="make" id="fMake"><option value="">Tutte le marche</option></select></label>
+        <label>Modello<select name="model" id="fModel" disabled><option value="">Tutti i modelli</option></select></label>
+        <label>Prezzo fino a<select name="pmax" data-list="price"><option value="">Qualsiasi</option></select></label>
+        <label>Anno da<select name="ymin" data-list="year"><option value="">Qualsiasi</option></select></label>
+      </div>
+      <div class="quick-actions">
+        <button type="button" class="sbtn ghost" id="btnMore">Altri filtri<b class="count" id="moreCount" hidden>0</b></button>
+        <button type="submit" class="sbtn">Cerca</button>
+      </div>
 
-      <section class="card">
-        <div class="grid2">
-          <label>Prezzo da<select name="pmin" data-list="price"><option value="">Qualsiasi</option></select></label>
-          <label>Prezzo fino a<select name="pmax" data-list="price"><option value="">Qualsiasi</option></select></label>
-          <label>Anno da<select name="ymin" data-list="year"><option value="">Qualsiasi</option></select></label>
-          <label>Anno fino a<select name="ymax" data-list="year"><option value="">Qualsiasi</option></select></label>
-          <label>Km da<select name="kmmin" data-list="km"><option value="">Qualsiasi</option></select></label>
-          <label>Km fino a<select name="kmmax" data-list="km"><option value="">Qualsiasi</option></select></label>
+      <!-- altri filtri: pannello che sale dal basso -->
+      <div class="adv" id="adv" hidden>
+        <div class="adv-panel">
+          <div class="sheet-title"><h2>Altri filtri</h2><button type="button" class="ibtn sm" id="btnAdvClose" aria-label="Chiudi">✕</button></div>
+          <div class="grid2">
+            <label class="span2">Versione / parole chiave<input name="kw" type="text" maxlength="40" placeholder="es. GTI, Aero, Quattro, Vector" autocapitalize="off"></label>
+            <label>Prezzo da<select name="pmin" data-list="price"><option value="">Qualsiasi</option></select></label>
+            <label>Anno fino a<select name="ymax" data-list="year"><option value="">Qualsiasi</option></select></label>
+            <label>Km da<select name="kmmin" data-list="km"><option value="">Qualsiasi</option></select></label>
+            <label>Km fino a<select name="kmmax" data-list="km"><option value="">Qualsiasi</option></select></label>
+            <label>Alimentazione<select name="fuel" id="fFuel"><option value="">Tutte</option></select></label>
+            <label>Cambio<select name="gear" id="fGear"><option value="">Tutti</option></select></label>
+            <label>Carrozzeria<select name="body" id="fBody"><option value="">Tutte</option></select></label>
+            <label>Venditore<select name="seller"><option value="">Tutti</option><option value="privato">Privati</option><option value="concessionario">Concessionari</option></select></label>
+            <label>Potenza da (CV)<input name="cvmin" type="number" inputmode="numeric" min="0" placeholder="CV"></label>
+            <label>Potenza fino a (CV)<input name="cvmax" type="number" inputmode="numeric" min="0" placeholder="CV"></label>
+            <label class="span2">Zona<select name="region" id="fRegion"><option value="">Tutta Italia</option></select></label>
+          </div>
+          <label class="check"><input type="checkbox" name="europe"> Anche annunci dall'estero (AutoScout24)</label>
+          <div class="sheet-actions">
+            <button type="button" class="sbtn ghost" id="btnReset">Azzera tutto</button>
+            <button type="submit" class="sbtn">Cerca</button>
+          </div>
         </div>
-      </section>
-
-      <section class="card">
-        <div class="grid2">
-          <label>Alimentazione<select name="fuel" id="fFuel"><option value="">Tutte</option></select></label>
-          <label>Cambio<select name="gear" id="fGear"><option value="">Tutti</option></select></label>
-          <label>Carrozzeria<select name="body" id="fBody"><option value="">Tutte</option></select></label>
-          <label>Venditore<select name="seller"><option value="">Tutti</option><option value="privato">Privati</option><option value="concessionario">Concessionari</option></select></label>
-          <label>Potenza da (CV)<input name="cvmin" type="number" inputmode="numeric" min="0" placeholder="CV"></label>
-          <label>Potenza fino a (CV)<input name="cvmax" type="number" inputmode="numeric" min="0" placeholder="CV"></label>
-          <label class="span2">Zona<select name="region" id="fRegion"><option value="">Tutta Italia</option></select></label>
-        </div>
-        <label class="check"><input type="checkbox" name="europe"> Anche annunci dall'estero (AutoScout24)</label>
-      </section>
-
-      <div class="form-foot">
-        <button type="button" class="link" id="btnReset">Azzera</button>
-        <button type="submit" class="sbtn big">Cerca</button>
       </div>
     </form>
 
-    <section id="savedSearchesBox" class="block" hidden>
-      <h3>Ricerche salvate</h3>
-      <div class="chips" id="savedSearches"></div>
-    </section>
-    <section id="recentBox" class="block" hidden>
-      <h3>Ultime ricerche</h3>
-      <div class="chips" id="recentSearches"></div>
-    </section>
+    <div class="chips-row" id="quickChips"></div>
+    <div class="chips-row" id="savedSearches"></div>
+    <div class="chips-row" id="recentSearches"></div>
+
+    <div class="feed-head">
+      <h3>Da scrollare: affari e auto da appassionati</h3>
+      <button class="link" id="btnFeedRefresh" type="button">↻</button>
+    </div>
+    <div id="feed" class="feed"></div>
+    <div id="feedMore" class="more"></div>
   </main>
 
   <!-- ================= RISULTATI ================= -->
@@ -138,6 +140,8 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="js/data.js"></script>
+  <script src="js/models.js"></script>
+  <script src="js/lang.js"></script>
   <script src="js/sites.js"></script>
   <script src="js/dedup.js"></script>
   <script src="js/app.js"></script>
