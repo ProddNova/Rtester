@@ -5,9 +5,9 @@ services:
     runtime: node
     name: cacciauto
     plan: free
-    # Nessuna dipendenza da installare: il build esegue solo i test.
+    # Nessuna dipendenza vera: "npm run build" esegue i test.
     # Se un test fallisce il deploy si ferma e resta online la versione precedente.
-    buildCommand: npm test
+    buildCommand: npm install && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     autoDeployTrigger: commit
