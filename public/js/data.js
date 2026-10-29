@@ -97,26 +97,26 @@
   ];
 
   var FUELS = [
-    { k: 'benzina', n: 'Benzina', e: '⛽' },
-    { k: 'diesel', n: 'Diesel', e: '🛢️' },
-    { k: 'gpl', n: 'GPL', e: '🔵' },
-    { k: 'metano', n: 'Metano', e: '🟢' },
-    { k: 'ibrida', n: 'Ibrida', e: '🔋' },
-    { k: 'elettrica', n: 'Elettrica', e: '⚡' }
+    { k: 'benzina', n: 'Benzina' },
+    { k: 'diesel', n: 'Diesel' },
+    { k: 'gpl', n: 'GPL' },
+    { k: 'metano', n: 'Metano' },
+    { k: 'ibrida', n: 'Ibrida' },
+    { k: 'elettrica', n: 'Elettrica' }
   ];
 
   var GEARS = [
-    { k: 'manuale', n: 'Manuale', e: '🕹️' },
-    { k: 'automatico', n: 'Automatico', e: '🅰️' }
+    { k: 'manuale', n: 'Manuale' },
+    { k: 'automatico', n: 'Automatico' }
   ];
 
   var BODIES = [
-    { k: 'citycar', n: 'City car', e: '🚗' },
-    { k: 'berlina', n: 'Berlina', e: '🚘' },
-    { k: 'sw', n: 'Station wagon', e: '🧳' },
-    { k: 'coupe', n: 'Coupé', e: '🏎️' },
-    { k: 'cabrio', n: 'Cabrio', e: '☀️' },
-    { k: 'suv', n: 'SUV / 4x4', e: '🏔️' }
+    { k: 'citycar', n: 'City car' },
+    { k: 'berlina', n: 'Berlina' },
+    { k: 'sw', n: 'Station wagon' },
+    { k: 'coupe', n: 'Coupé' },
+    { k: 'cabrio', n: 'Cabrio' },
+    { k: 'suv', n: 'SUV / 4x4' }
   ];
 
   var data = { MAKES: MAKES, SLUG_FIX: SLUG_FIX, REGIONS: REGIONS, FUELS: FUELS, GEARS: GEARS, BODIES: BODIES };

@@ -1,0 +1,27 @@
+# Sveglia del mattino: alle 8:00 (ora italiana) chiama CacciAuto così il server di Render
+# è già sveglio quando lo apri. Il resto della giornata lo tiene sveglio il server stesso
+# (server/keepalive.js), che dalle 3 alle 8 si riposa.
+#
+# Indirizzo dell'app: variabile del repo CACCIAUTO_URL (Settings > Secrets and variables > Actions > Variables).
+# Se non c'è, prova https://cacciauto.onrender.com
+name: Sveglia CacciAuto
+
+on:
+  schedule:
+    # GitHub usa l'ora UTC: le 6 e le 7 UTC coprono le 8 italiane sia con l'ora legale sia con la solare
+    - cron: '0 6 * * *'
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  sveglia:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Chiama l'app
+        env:
+          URL: ${{ vars.CACCIAUTO_URL || 'https://cacciauto.onrender.com' }}
+        run: |
+          ORA=$(TZ=Europe/Rome date +%H)
+          if [ "$ORA" -lt 8 ] && [ "${{ github.event_name }}" = "schedule" ]; then echo "Sono le $ORA in Italia: troppo presto, lascio dormire"; exit 0; fi
+          curl -sS --max-time 120 --retry 3 --retry-delay 20 "$URL/api/health" || echo "App non raggiungibile"

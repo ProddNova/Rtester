@@ -18,12 +18,12 @@
 </head>
 <body>
   <header class="top">
-    <button class="back" id="btnBack" aria-label="Indietro" hidden>‹</button>
-    <a class="brand" href="#/" id="brand">CacciAuto</a>
+    <button class="back" id="btnBack" aria-label="Indietro" data-icon="chevron-left" hidden></button>
+    <a class="brand" href="#/" id="brand" data-icon="car">CacciAuto</a>
     <div class="top-title" id="topTitle"></div>
     <nav class="top-actions">
-      <a class="ibtn" href="#/" id="navSearch" aria-label="Home">🏠</a>
-      <a class="ibtn" href="#/salvati" id="navSaved" aria-label="Salvati">⭐<b class="count" id="savedCount" hidden>0</b></a>
+      <a class="ibtn" href="#/" id="navSearch" aria-label="Home" data-icon="house"></a>
+      <a class="ibtn" href="#/salvati" id="navSaved" aria-label="Salvati" data-icon="star"><b class="count" id="savedCount" hidden>0</b></a>
     </nav>
   </header>
 
@@ -31,20 +31,20 @@
   <main id="view-search" class="view">
     <form id="searchForm" autocomplete="off" class="quick card">
       <div class="grid2">
-        <label>Marca<select name="make" id="fMake"><option value="">Tutte le marche</option></select></label>
-        <label>Modello<select name="model" id="fModel" disabled><option value="">Tutti i modelli</option></select></label>
+        <label>Marca<span class="combo"><input name="make" id="fMake" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" placeholder="Tutte le marche"><button type="button" class="clear" tabindex="-1" aria-label="Cancella" data-icon="x"></button></span></label>
+        <label>Modello<span class="combo"><input name="model" id="fModel" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Scegli prima la marca" disabled><button type="button" class="clear" tabindex="-1" aria-label="Cancella" data-icon="x"></button></span></label>
         <label>Prezzo fino a<select name="pmax" data-list="price"><option value="">Qualsiasi</option></select></label>
         <label>Anno da<select name="ymin" data-list="year"><option value="">Qualsiasi</option></select></label>
       </div>
       <div class="quick-actions">
-        <button type="button" class="sbtn ghost" id="btnMore">Altri filtri<b class="count" id="moreCount" hidden>0</b></button>
-        <button type="submit" class="sbtn">Cerca</button>
+        <button type="button" class="sbtn ghost" id="btnMore" data-icon="sliders-horizontal">Altri filtri<b class="count" id="moreCount" hidden>0</b></button>
+        <button type="submit" class="sbtn" data-icon="search">Cerca</button>
       </div>
 
       <!-- altri filtri: pannello che sale dal basso -->
       <div class="adv" id="adv" hidden>
         <div class="adv-panel">
-          <div class="sheet-title"><h2>Altri filtri</h2><button type="button" class="ibtn sm" id="btnAdvClose" aria-label="Chiudi">✕</button></div>
+          <div class="sheet-title"><h2>Altri filtri</h2><button type="button" class="ibtn sm" id="btnAdvClose" aria-label="Chiudi" data-icon="x"></button></div>
           <div class="grid2">
             <label class="span2">Versione / parole chiave<input name="kw" type="text" maxlength="40" placeholder="es. GTI, Aero, Quattro, Vector" autocapitalize="off"></label>
             <label>Prezzo da<select name="pmin" data-list="price"><option value="">Qualsiasi</option></select></label>
@@ -73,8 +73,15 @@
     <div class="chips-row" id="recentSearches"></div>
 
     <div class="feed-head">
-      <h3>Da scrollare: affari e auto da appassionati</h3>
-      <button class="link" id="btnFeedRefresh" type="button">↻</button>
+      <div class="seg" id="feedMode" role="tablist" aria-label="Cosa mostrare">
+        <button type="button" data-mode="mix" data-icon="gem">Appassionati e affari</button>
+        <button type="button" data-mode="recenti" data-icon="clock">Più recenti</button>
+      </div>
+      <button class="link" id="btnFeedRefresh" type="button" data-icon="shuffle">Mescola</button>
+    </div>
+    <div class="feed-filters">
+      <label>Budget max<select id="feedPmax" data-list="price"><option value="">Qualsiasi</option></select></label>
+      <label>Km max<select id="feedKm" data-list="km"><option value="">Qualsiasi</option></select></label>
     </div>
     <div id="feed" class="feed"></div>
     <div id="feedMore" class="more"></div>
@@ -84,17 +91,17 @@
   <main id="view-results" class="view">
     <div class="res-bar">
       <a class="summary" href="#/" id="summary" title="Modifica ricerca"></a>
-      <button class="ibtn sm" id="btnSaveSearch" aria-label="Salva ricerca">☆</button>
+      <button class="ibtn sm" id="btnSaveSearch" aria-label="Salva ricerca" data-icon="bookmark"></button>
     </div>
     <div class="res-head">
       <span id="resInfo" class="muted"></span>
       <select id="sort" aria-label="Ordina">
         <option value="rilevanza">Misti</option>
         <option value="affari">Affari prima</option>
-        <option value="prezzo">Prezzo ↑</option>
-        <option value="prezzo_desc">Prezzo ↓</option>
-        <option value="km">Km ↑</option>
-        <option value="anno">Anno ↓</option>
+        <option value="prezzo">Prezzo più basso</option>
+        <option value="prezzo_desc">Prezzo più alto</option>
+        <option value="km">Meno km</option>
+        <option value="anno">Più nuove</option>
         <option value="recenti">Più recenti</option>
       </select>
     </div>
@@ -112,7 +119,7 @@
       <h2>Salvati</h2>
       <select id="savedSort" aria-label="Ordina salvati">
         <option value="nuovi">Ultimi salvati</option>
-        <option value="prezzo">Prezzo ↑</option>
+        <option value="prezzo">Prezzo più basso</option>
         <option value="calo">Prezzo sceso</option>
       </select>
     </div>
@@ -124,14 +131,14 @@
     <div id="addMsg" class="addmsg" hidden></div>
     <div class="board-tools">
       <span class="muted" id="savedInfo"></span>
-      <button class="link" id="btnCheck">↻ Controlla prezzi</button>
+      <button class="link" id="btnCheck" data-icon="refresh-cw">Controlla prezzi</button>
     </div>
     <div id="saved" class="list"></div>
   </main>
 
   <dialog id="dlg" class="sheet">
     <form method="dialog" class="sheet-body">
-      <div class="sheet-title"><h2 id="dlgTitle"></h2><button class="ibtn sm" value="cancel" aria-label="Chiudi">✕</button></div>
+      <div class="sheet-title"><h2 id="dlgTitle"></h2><button class="ibtn sm" value="cancel" aria-label="Chiudi" data-icon="x"></button></div>
       <div id="dlgBody" class="dlg-text"></div>
       <div class="sheet-actions" id="dlgActions"></div>
     </form>
@@ -139,6 +146,7 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+  <script src="js/icons.js"></script>
   <script src="js/data.js"></script>
   <script src="js/models.js"></script>
   <script src="js/lang.js"></script>

@@ -130,6 +130,12 @@ async function fromTrovit(search, page) {
   try { return TV.parse(await getPage(TV.url(search, page || 1))).items; } catch (e) { return []; }
 }
 
+// Trovit con la ricerca generica "auto" mette anche moto e scooter: teniamo solo marche di auto note
+const MODELS = require('../public/js/models.js');
+const MAKE_NAMES = new Set(MODELS.makes.map((m) => m.n.toLowerCase().split(/[\s-]/)[0]));
+['vw', 'mercedes'].forEach((x) => MAKE_NAMES.add(x));
+function isCar(it) { return MAKE_NAMES.has(String(it.title || '').toLowerCase().split(/[\s-]/)[0]); }
+
 function kwOk(it, kw) {
   if (!kw) return true;
   const t = (it.title + ' ' + it.version).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -156,7 +162,8 @@ async function feed(page, opts) {
 
   if (opts.mode === 'recenti') {
     const s = { pmax: o.pmax ? String(o.pmax) : '', kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'recenti' };
-    const lists = await Promise.all([fromAS(s, page + 1), fromSubito(s, page + 1), fromTrovit(Object.assign({ make: 'auto' }, s), page + 1)]);
+    const lists = await Promise.all([fromAS(s, page + 1), fromSubito(s, page + 1),
+      fromTrovit(Object.assign({ make: 'auto' }, s), page + 1).then((l) => l.filter(isCar))]);
     const items = [];
     const max = Math.max(0, ...lists.map((l) => l.length));
     for (let i = 0; i < max; i++) lists.forEach((l) => { if (l[i] && within(l[i], o)) items.push(Object.assign(l[i], { reason: 'recente', label: 'Nuovo annuncio' })); });

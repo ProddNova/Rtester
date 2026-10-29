@@ -6,9 +6,15 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 
 ## Cosa fa
 
-- **Home da scorrere**: senza mettere filtri trovi un feed infinito di **affari** (prezzo sotto il mercato secondo
-  AutoScout24) e **auto da appassionati** (Evo, MX-5, Delta Integrale, Saab Aero…, con una curiosità su ognuna).
-- **Ricerca rapida**: marca, modello, prezzo massimo e anno minimo; tutto il resto è in "Altri filtri"
+- **Home da scorrere**: senza mettere filtri trovi un feed infinito, in due modalità:
+  - **Appassionati e affari**: auto da appassionati (Evo, MX-5, Delta Integrale, Saab Aero…, con una curiosità
+    su ognuna) e modelli diffusi con prezzo sotto il mercato secondo AutoScout24. Ordine casuale a ogni apertura
+    (pulsante "Mescola"), mai due annunci di fila dello stesso modello;
+  - **Più recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit.
+
+  Due filtri solo per il feed: **budget massimo** e **km massimi**.
+- **Ricerca rapida**: marca e modello si scrivono con la tastiera e la lista si filtra mentre scrivi
+  ("mercedes" → Mercedes-Benz, "classe c" → Classe C); poi prezzo massimo e anno minimo; tutto il resto è in "Altri filtri"
   (versione/parole chiave, prezzo da, anno fino a, km, alimentazione, cambio, carrozzeria, privati/concessionari,
   potenza, regione, estero). Più scorciatoie al volo: "Sotto 5.000 €", "Youngtimer", "Cabrio", "200+ CV"…
 - **Tutte le marche e i modelli**: 301 marche e oltre 5.000 modelli, presi da AutoScout24
@@ -33,6 +39,22 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 - **Nascondi** gli annunci che non ti interessano.
 - **App installabile** (PWA); su Android puoi condividere un annuncio da un'altra app verso CacciAuto.
 
+- **Icone** [Lucide](https://lucide.dev) (gratuite, licenza ISC), salvate nel progetto (`public/js/icons.js`,
+  rigenerabili con `node scripts/icons.js`).
+- **Niente zoom** con le dita sul telefono.
+
+## Server sempre sveglio (tranne di notte)
+
+Il piano gratuito di Render addormenta il server dopo 15 minuti senza visite.
+
+- `server/keepalive.js`: ogni 10 minuti il server chiama il proprio indirizzo pubblico (Render lo fornisce da solo in
+  `RENDER_EXTERNAL_URL`), così resta sveglio. **Dalle 3:00 alle 8:00 (ora italiana) si ferma** e il server si riposa.
+  Per spegnere la funzione: variabile `KEEPALIVE=off`.
+- `.github/workflows/sveglia.yml`: alle 8:00 GitHub chiama l'app per svegliarla (da addormentato il server non
+  può svegliarsi da solo). Usa la variabile del repo `CACCIAUTO_URL`; se manca prova `https://cacciauto.onrender.com`.
+
+Ore di accensione: circa 19 al giorno, quindi circa 590 al mese, dentro le 750 gratuite di Render.
+
 ## Siti
 
 | Sito | Nella lista | Pagina annuncio nell'app |
@@ -44,8 +66,10 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 | Trovit (aggregatore) | ✅ (non filtra per zona) | ✅ descrizione e scheda |
 | ilParking, Facebook Marketplace | link "Cerca anche su" già filtrato | — |
 
-ilParking risponde con la protezione anti-bot di Cloudflare e Marketplace richiede il login:
-CacciAuto non prova ad aggirarli, li apre come link.
+ilParking (e i siti gemelli theparking.eu) risponde a CacciAuto con la protezione anti-bot di Cloudflare,
+cioè dice esplicitamente "niente programmi automatici"; Marketplace richiede il login. CacciAuto non prova
+ad aggirare questi blocchi (né direttamente né passando da siti gemelli dello stesso gruppo): li apre come link
+già filtrati.
 
 ## Come funziona
 
@@ -116,12 +140,15 @@ server/
   search.js             ricerca su tutti i siti, filtri, doppioni, ordinamento
   feed.js               feed della home (affari e auto da appassionati)
   translate.js          traduzione in italiano
+  keepalive.js          tieni sveglio (pausa 3-8)
   detail.js             pagina annuncio (solo siti ammessi)
   store.js              salvati e ricerche condivise (Upstash o file)
   fetch.js              download con cache e rilevamento blocchi
   sources/              un lettore per sito
 tests/                  test (node --test), senza internet
 scripts/update-models.js  aggiorna marche e modelli da AutoScout24
+scripts/icons.js        rigenera le icone Lucide
+.github/workflows/      sveglia del mattino
 render.yaml             configurazione Render
 ```
 
