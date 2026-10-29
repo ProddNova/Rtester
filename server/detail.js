@@ -56,6 +56,13 @@ async function getAd(rawUrl) {
     try { url = await resolve(url); } catch (e) { return { error: 'non raggiungibile', status: 502 }; }
     u = new URL(url);
   }
+  // Trovit a volte passa da una pagina intermedia: ".../cod.interm/url.<indirizzo vero>/..."
+  const interm = u.hostname.endsWith('trovit.it') && decodeURIComponent(u.pathname + u.search).match(/cod\.interm\/url\.(https?(?::|%3A)[^\s]+?)(?:\/[a-z_]+\.|$)/i);
+  if (interm) {
+    let target = interm[1];
+    for (let i = 0; i < 2 && /%[0-9a-f]{2}/i.test(target); i++) target = decodeURIComponent(target);
+    try { u = new URL(target); url = u.toString(); } catch (e) { /* resta quello di Trovit */ }
+  }
   const site = sourceFor(u);
   // Sito che non leggiamo (es. Subito): rimandiamo al link vero
   if (!site) return { external: true, url };

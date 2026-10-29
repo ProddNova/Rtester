@@ -101,6 +101,14 @@ function jsonAt(text, start) {
   return null;
 }
 
+// Blocco di testo del formato React ("id:T<lunghezza in byte, esadecimale>,<testo>")
+function textChunk(payload, id) {
+  const m = new RegExp('(?:^|\\n)' + id + ':T([0-9a-f]+),').exec(payload);
+  if (!m) return '';
+  const bytes = parseInt(m[1], 16);
+  return Buffer.from(payload.slice(m.index + m[0].length), 'utf8').subarray(0, bytes).toString('utf8').trim();
+}
+
 function detail(html) {
   if (!html) return null;
   // ricompone i blocchi self.__next_f.push([1,"..."])
@@ -113,6 +121,8 @@ function detail(html) {
   let x;
   try { x = JSON.parse(jsonAt(payload, at)); } catch (e) { return null; }
   const n = normalize(x);
+  // descrizioni lunghe: nella pagina c'è solo un rimando ("$4b") a un blocco di testo a parte ("4b:T<lunghezza>,<testo>")
+  if (/^\$[0-9a-f]+$/i.test(n.description || '')) n.description = textChunk(payload, n.description.slice(1));
   return {
     title: n.title, version: n.version, price: n.price, km: n.km, year: n.year, reg: n.reg,
     fuel: n.fuel, fuelLabel: n.fuelLabel, gear: n.gear, gearLabel: n.gearLabel, cv: n.cv, kw: n.kw,
@@ -127,4 +137,4 @@ function detail(html) {
   };
 }
 
-module.exports = { id: 'subito', name: 'Subito', url, urls, parse, detail, normalize };
+module.exports = { id: 'subito', name: 'Subito', url, urls, parse, detail, normalize, textChunk };

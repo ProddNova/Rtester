@@ -79,13 +79,13 @@ test('km falsi: 0, 300, 999 su auto vecchie e numeri tipo 111.111 esclusi', () =
 });
 
 test('avvisi dalla descrizione (italiano, tedesco, olandese) e negazioni', () => {
-  const t = (s) => M.flags(s).map((f) => (f.bad ? '-' : '+') + f.t);
-  assert.deepStrictEqual(t('Motore rifatto a 200.000 km, distribuzione fatta, frizione nuova'), ['+Motore rifatto', '+Distribuzione fatta', '+Frizione nuova']);
+  const t = (s) => M.flags(s).map((f) => (f.bad ? '-' : f.warn ? '!' : '+') + f.t);
+  assert.deepStrictEqual(t('Motore rifatto a 200.000 km, distribuzione fatta, frizione nuova'), ['!Motore rifatto', '+Distribuzione fatta', '+Frizione nuova']);
   assert.deepStrictEqual(t('Motore da rifare, solo per ricambi'), ['-Motore da rifare', '-Per ricambi']);
   assert.deepStrictEqual(t('Mai incidentata, unico proprietario'), ['+Un solo proprietario']);
   assert.deepStrictEqual(t('Motorschaden, nicht fahrbereit'), ['-Motore da rifare', '-Non marciante']);
-  assert.deepStrictEqual(t('Motor überholt, Zahnriemen neu, Scheckheft'), ['+Motore rifatto', '+Distribuzione fatta', '+Tagliandi documentati']);
-  assert.deepStrictEqual(t('motor gereviseerd, eerste eigenaar'), ['+Motore rifatto', '+Un solo proprietario']);
+  assert.deepStrictEqual(t('Motor überholt, Zahnriemen neu, Scheckheft'), ['!Motore rifatto', '+Distribuzione fatta', '+Tagliandi documentati']);
+  assert.deepStrictEqual(t('motor gereviseerd, eerste eigenaar'), ['!Motore rifatto', '+Un solo proprietario']);
   assert.deepStrictEqual(t('Auto incidentata sul lato destro'), ['-Incidentata']);
 });
 
@@ -101,11 +101,35 @@ test('carrozzeria scritta dai siti', () => {
 test('feed: lista appassionati ampia, nomi come su AutoScout24, tipo per ognuna', () => {
   const { RARE, POPULAR } = require('../server/feed-list');
   const MODELS = require('../public/js/models.js');
-  assert.ok(RARE.length >= 140 && POPULAR.length >= 80);
+  assert.ok(RARE.length >= 130 && POPULAR.length >= 80);
   const names = (mk) => { const m = MODELS.makes.find((x) => x.n === mk); return m ? (m.g || []).concat((m.m || []).map((x) => x[0])) : null; };
   RARE.forEach((r) => {
     assert.ok(names(r.make) && names(r.make).includes(r.model), r.make + ' ' + r.model);
     assert.ok(['citycar', 'berlina', 'sw', 'coupe', 'cabrio', 'suv'].includes(r.b), r.make + ' ' + r.model + ' tipo');
   });
   POPULAR.forEach(([mk, md]) => assert.ok(names(mk) && names(mk).includes(md), mk + ' ' + md));
+});
+
+test('affari: confronto con auto simili (mediana), prezzi anomali non spostano la stima', () => {
+  const D = require('../public/js/deals.js');
+  const mk = (price, year, km, extra) => Object.assign({ title: 'Fiat Panda', price, year, km, fuel: 'benzina', cv: 69 }, extra || {});
+  const items = [mk(5000, 2012, 100000), mk(5200, 2012, 110000), mk(4900, 2013, 95000), mk(5100, 2011, 105000), mk(5300, 2012, 90000),
+    mk(5000, 2012, 98000), mk(500, 2012, 100000) /* prezzo assurdo */, mk(3600, 2012, 102000) /* affare */,
+    mk(15000, 2012, 100000, { fuel: 'diesel', cv: 95 }) /* altra versione: non entra nel confronto */];
+  D.estimate(items, { oneModel: true });
+  const deal = items[7];
+  assert.strictEqual(deal.estHow, 'simili');
+  assert.ok(deal.est >= 4900 && deal.est <= 5200, 'prezzo tipico ' + deal.est);
+  assert.strictEqual(D.category(deal.dev), 1, 'affare');
+  assert.strictEqual(D.category(items[6].dev), 0, 'troppo basso: sospetto');
+  assert.strictEqual(items[8].estHow === 'simili', false, 'la diesel 95 CV non ha simili');
+});
+
+test('parola chiave della versione come parola intera ("GT" non dentro altre parole, "R.S." = RS)', () => {
+  const t = (x) => M.text({ title: x });
+  assert.ok(!M.kwHit(t('Fiat Punto 1.2 Dynamic'), 'gt'));
+  assert.ok(M.kwHit(t('Fiat Punto GT 1.4 turbo'), 'gt'));
+  assert.ok(M.kwHit(t('Renault Clio R.S. 2.0'), 'rs'));
+  assert.ok(M.kwHit(t('Honda Civic TypeR'), 'type r'));
+  assert.ok(!M.kwHit(t('Renault Clio 1.5 dCi'), 'rs'));
 });

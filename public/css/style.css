@@ -416,8 +416,10 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 .flag .ic { width: 12px; height: 12px; }
 .flag.good { background: var(--good-soft); color: var(--good); }
 .flag.bad { background: rgba(255, 132, 113, .16); color: var(--bad); }
+.flag.warn { background: rgba(255, 196, 61, .15); color: #ffc43d; }
 .flagbox { margin: 14px 0; padding: 12px 14px; border-radius: var(--r); background: var(--surface); border-left: 3px solid var(--good); }
 .flagbox.has-bad { border-left-color: var(--bad); }
+.flagbox.has-warn { border-left-color: #ffc43d; }
 .flagbox-title { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
 .flagbox .flag { font-size: 13px; padding: 5px 10px; }
 
@@ -457,3 +459,22 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 .mp-bd b { font-size: 14.5px; }
 .mp-bd span { font-size: 12.5px; color: var(--muted); }
 @media (min-width: 900px) { .mpcard { grid-column: 1 / -1; } }
+
+/* ---------- dati principali ben leggibili (anno, km, motore, CV, cambio) ---------- */
+.specs-row { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.specs-row .sp { display: inline-flex; align-items: center; gap: 4px; padding: 3px 7px; border-radius: 7px; background: var(--surface-2); white-space: nowrap; }
+.specs-row .sp b { font-size: 12.5px; font-weight: 700; color: var(--text); }
+.specs-row .sp .ic { width: 13px; height: 13px; color: var(--muted); }
+.fcard .specs-row { gap: 6px; margin-top: 8px; }
+.fcard .specs-row .sp { padding: 4px 9px; }
+.fcard .specs-row .sp b { font-size: 13.5px; }
+
+/* ---------- auto salvata: si vede subito ---------- */
+.ad.saved-on, .fcard.saved-on { box-shadow: inset 0 0 0 2px var(--accent); }
+.ad.saved-on .star, .fcard.saved-on .star { color: var(--accent); }
+.star.on .ic { fill: currentColor; }
+.sbtn.on-star { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.sbtn.on-star .ic { fill: currentColor; }
+
+/* ---------- foto dei salvati (immagine singola, non il carosello) ---------- */
+.ad .ph > img { width: 100%; height: 100%; object-fit: cover; display: block; }

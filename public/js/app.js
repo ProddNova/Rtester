@@ -9,7 +9,7 @@
 
   var SITE_NAMES = { autoscout: 'AutoScout24', autosupermarket: 'AutoSuperMarket', automobile: 'Automobile.it', trovit: 'Trovit', subito: 'Subito', kleinanzeigen: 'Kleinanzeigen (DE)', marktplaats: 'Marktplaats (NL)', facebook: 'Marketplace', ilparking: 'ilParking' };
   var SITE_SHORT = { autoscout: 'AS24', autosupermarket: 'ASM', automobile: 'AM.it', trovit: 'Trovit', subito: 'Subito', kleinanzeigen: 'KA.de', marktplaats: 'MP.nl', facebook: 'FB', ilparking: 'ilParking' };
-  var DEAL = ['Molto basso', 'Affare', 'Buon prezzo', 'Nella media', 'Un po\' caro', 'Caro', 'Molto caro'];
+  var DEAL = ['Troppo basso?', 'Affare', 'Buon prezzo', 'Nella media', 'Un po\' caro', 'Caro', 'Molto caro'];
   var EMPTY = { make: '', model: '', kw: '', pmin: '', pmax: '', ymin: '', ymax: '', kmmin: '', kmmax: '', fuel: '', gear: '', body: '', seller: '', cvmin: '', cvmax: '', region: '', radius: '', area: 'eu', sort: 'rilevanza', sort2: '' };
   var FORM_FIELDS = ['make', 'model', 'kw', 'pmin', 'pmax', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region', 'radius'];
 
@@ -493,55 +493,14 @@
     lset('seen', state.seen);
   }
 
-  // Stima del prezzo "giusto" con gli annunci della ricerca: log(prezzo) ~ anno + km.
-  // Serve a capire al volo se un annuncio è sotto o sopra il mercato.
+  // Affari: confronto con auto simili (deals.js). Se AutoScout24 dà la sua valutazione di mercato, vale quella.
+  // Un annuncio con problemi scritti nella descrizione (motore da rifare, ricambi...) non è mai "un affare".
   function estimateDeals(items, s) {
-    var groups = {};
+    window.CA_DEALS.estimate(items, { oneModel: !!(s.make && s.model) });
     items.forEach(function (it) {
-      var g = s.make && s.model ? 'all' : (it.title || '').toLowerCase().split(/\s+/).slice(0, 2).join(' ');
-      (groups[g] = groups[g] || []).push(it);
+      it.dealCat = typeof it.deal === 'number' ? it.deal : window.CA_DEALS.category(it.dev);
+      if (it.dealCat !== null && it.dealCat <= 2 && adFlags(it).some(function (f) { return f.bad; })) it.dealCat = null;
     });
-    Object.keys(groups).forEach(function (g) {
-      var list = groups[g].filter(function (it) { return it.price > 300 && it.year && it.km !== null && it.km !== undefined; });
-      if (list.length < 8) return;
-      // minimi quadrati con 3 incognite: risolviamo il sistema 3x3
-      var A = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], b = [0, 0, 0];
-      list.forEach(function (it) {
-        var x = [1, it.year - 2000, it.km / 100000], y = Math.log(it.price);
-        for (var i = 0; i < 3; i++) { b[i] += x[i] * y; for (var j = 0; j < 3; j++) A[i][j] += x[i] * x[j]; }
-      });
-      var c = solve3(A, b);
-      if (!c) return;
-      groups[g].forEach(function (it) {
-        if (!(it.price > 300 && it.year && it.km !== null && it.km !== undefined)) return;
-        var pred = Math.exp(c[0] + c[1] * (it.year - 2000) + c[2] * it.km / 100000);
-        if (!isFinite(pred) || pred <= 0) return;
-        it.est = Math.round(pred / 50) * 50;
-        it.dev = it.price / pred - 1;
-      });
-    });
-    items.forEach(function (it) {
-      // AutoScout24 ha già la sua valutazione di mercato: è più affidabile della nostra
-      if (typeof it.deal === 'number') { it.dealCat = it.deal; return; }
-      if (typeof it.dev !== 'number') { it.dealCat = null; return; }
-      var d = it.dev;
-      it.dealCat = d <= -0.4 ? 0 : d <= -0.15 ? 1 : d <= -0.06 ? 2 : d < 0.08 ? 3 : d < 0.18 ? 4 : d < 0.35 ? 5 : 6;
-    });
-  }
-  function solve3(A, b) {
-    var m = A.map(function (r, i) { return r.concat([b[i]]); });
-    for (var i = 0; i < 3; i++) {
-      var p = i;
-      for (var r = i + 1; r < 3; r++) if (Math.abs(m[r][i]) > Math.abs(m[p][i])) p = r;
-      if (Math.abs(m[p][i]) < 1e-9) return null;
-      var t = m[i]; m[i] = m[p]; m[p] = t;
-      for (var r2 = 0; r2 < 3; r2++) {
-        if (r2 === i) continue;
-        var f = m[r2][i] / m[i][i];
-        for (var k = i; k < 4; k++) m[r2][k] -= f * m[i][k];
-      }
-    }
-    return [m[0][3] / m[0][0], m[1][3] / m[1][1], m[2][3] / m[2][2]];
   }
 
   function distLabel(it) { return typeof it.dist === 'number' ? (it.distApprox ? '~' : '') + dots(it.dist) + '\u00a0km' : ''; }
@@ -673,11 +632,13 @@
 
   // Avvisi presi dal testo dell'annuncio ("Motore rifatto", "Motore da rifare", "Incidentata"...)
   function adFlags(it, text) { return M.flags([it.title, it.version, text || it.snippet || ''].join(' \n ')); }
-  function flagNode(f) { return h('span', { class: 'flag ' + (f.bad ? 'bad' : 'good') }, it2(f.bad ? 'triangle-alert' : 'check', f.t)); }
+  function flagNode(f) { return h('span', { class: 'flag ' + (f.bad ? 'bad' : f.warn ? 'warn' : 'good') }, it2(f.bad || f.warn ? 'triangle-alert' : 'check', f.t)); }
+  // prima i problemi, poi le cose da verificare, poi i pregi
+  function flagRank(f) { return f.bad ? 0 : f.warn ? 1 : 2; }
   function flagRow(it, max) {
     var list = adFlags(it);
     if (!list.length) return null;
-    list.sort(function (a, b) { return (b.bad ? 1 : 0) - (a.bad ? 1 : 0); });
+    list.sort(function (a, b) { return flagRank(a) - flagRank(b); });
     return h('div', { class: 'flags' }, list.slice(0, max).map(flagNode));
   }
 
@@ -695,8 +656,8 @@
 
   function dealBadge(it) {
     if (typeof it.dealCat !== 'number') return null;
-    // la nostra stima (non quella di AutoScout24) mescola versioni diverse: mostriamo solo i prezzi buoni
-    if (typeof it.deal !== 'number' && it.dealCat >= 3) return null;
+    // la nostra valutazione vale solo col confronto con almeno 5 auto simili; "nella media" non serve dirlo
+    if (typeof it.deal !== 'number' && (it.dealCat === 3 || it.estHow !== 'simili')) return null;
     var txt = DEAL[it.dealCat];
     if (typeof it.dev === 'number' && typeof it.deal !== 'number' && it.dealCat !== 3) txt += ' ' + (it.dev > 0 ? '+' : '−') + Math.abs(Math.round(it.dev * 100)) + '%';
     return h('span', { class: 'deal d' + it.dealCat, text: txt });
@@ -712,17 +673,43 @@
     var b = h('button', { class: 'star' + (on ? ' on' : ''), type: 'button', 'aria-label': on ? 'Togli dai salvati' : 'Salva' }, [ic('star')]);
     b.addEventListener('click', function (e) {
       e.preventDefault(); e.stopPropagation();
-      toggleSave(it).then(function () {
-        var now = isSaved(it);
-        b.classList.toggle('on', now);
-        b.setAttribute('aria-label', now ? 'Togli dai salvati' : 'Salva');
-      });
+      toggleSave(it).then(markSaved);
     });
     return b;
   }
 
+  // Motore dalla versione: "Cabriolet 1.9 TiD 16V" -> "1.9" (solo cilindrate sensate, non "9.3" di Saab 9.3)
+  function engineOf(it) {
+    var src = it.version || String(it.title || '').split(' ').slice(2).join(' ');
+    var m = String(src).match(/(?:^|[^\d.,])([0-6])[.,](\d)(?![\d.,])/);
+    var cc = m ? m[1] + '.' + m[2] : '';
+    if (cc && (+cc < 0.6 || +cc > 6.9)) cc = '';
+    var fuel = { benzina: 'Benzina', diesel: 'Diesel', gpl: 'GPL', metano: 'Metano', ibrida: 'Ibrida', elettrica: 'Elettrica' }[it.fuel] || '';
+    return [cc, fuel].filter(Boolean).join(' ');
+  }
+  // Dati principali in etichette ben leggibili: anno, km, motore, CV, cambio
+  function specChips(it) {
+    var list = [
+      it.year ? ['calendar', String(it.year)] : null,
+      it.km || it.km === 0 ? ['gauge', kmf(it.km)] : null,
+      engineOf(it) ? ['fuel', engineOf(it)] : null,
+      it.cv ? ['zap', it.cv + '\u00a0CV'] : null,
+      it.gear === 'automatico' ? ['sliders-horizontal', 'Automatico'] : null
+    ].filter(Boolean);
+    if (!list.length) return null;
+    return h('div', { class: 'specs-row' }, list.map(function (x) { return h('span', { class: 'sp' }, [ic(x[0]), h('b', { text: x[1] })]); }));
+  }
+  // Auto salvata: bordo e stella accesi su tutte le card visibili
+  function markSaved() {
+    Array.prototype.forEach.call(document.querySelectorAll('[data-key]'), function (el) {
+      var on = state.saved.some(function (x) { return x.key === el.getAttribute('data-key'); });
+      el.classList.toggle('saved-on', on);
+      var st = el.querySelector('.star');
+      if (st) { st.classList.toggle('on', on); st.setAttribute('aria-label', on ? 'Togli dai salvati' : 'Salva'); }
+    });
+  }
+
   function adCard(it) {
-    var meta = [kmf(it.km), it.year, cap(it.fuel), it.cv ? it.cv + '\u00a0CV' : '', it.gear === 'automatico' ? 'Aut.' : ''].filter(Boolean).join(' · ');
     var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
@@ -730,7 +717,7 @@
     if (typeof it.dist === 'number') tags.push(h('span', { class: 'dist', text: distLabel(it) }));
     if (it.city) tags.push(h('span', { class: 'city', text: it.city }));
     var href = '#/annuncio?u=' + encodeURIComponent(it.url);
-    return h('a', { class: 'ad' + (state.visited[it.key] ? ' visited' : ''), href: href }, [
+    return h('a', { class: 'ad' + (state.visited[it.key] ? ' visited' : '') + (isSaved(it) ? ' saved-on' : ''), href: href, 'data-key': keyOf(it) }, [
       h('div', { class: 'ph' }, [
         photoStrip(it),
         it.isNew ? h('span', { class: 'new', text: 'NUOVO' }) : null
@@ -738,7 +725,7 @@
       h('div', { class: 'bd' }, [
         h('div', { class: 'tt' }, titleNodes(it)),
         h('div', { class: 'prow' }, [h('span', { class: 'pr', text: eur(it.price) }), dealBadge(it)]),
-        meta ? h('div', { class: 'mt', text: meta }) : null,
+        specChips(it),
         flagRow(it, 2),
         h('div', { class: 'ft' }, tags)
       ]),
@@ -780,6 +767,8 @@
         fetched = true;
       }).catch(function () {
         Array.prototype.slice.call(strip.querySelectorAll('.slot')).forEach(function (x) { x.remove(); });
+        total = strip.children.length;
+        counter.lastChild.textContent = Math.min(total, Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth)) + 1) + '/' + total;
         fetched = true;
       });
     }, { passive: true });
@@ -964,7 +953,9 @@
     ]));
     if (ad && ad.market && ad.market.median) wrap.appendChild(h('div', { class: 'ad-note', text: 'Valutazione ' + ad.market.source + ': prezzo medio di mercato ' + eur(ad.market.median) }));
     // la nostra stima la mostriamo solo quando dice "affare" (altrimenti mescola troppe versioni diverse)
-    if (base.est && typeof base.dev === 'number' && base.dev < -0.06) wrap.appendChild(h('div', { class: 'ad-note', text: 'Stima sugli annunci di questa ricerca (anno e km): ' + eur(base.est) }));
+    if (base.est && typeof base.dev === 'number') {
+      if (base.estHow === 'simili') wrap.appendChild(h('div', { class: 'ad-note', text: 'Prezzo tipico di ' + base.estN + ' auto simili (stesso modello e alimentazione, anno ±2, km e potenza vicini): ' + eur(base.est) }));
+    }
     var savedItem = state.saved.filter(function (x) { return x.key === X.listingKey(base.url); })[0];
     if (savedItem && savedItem.history && savedItem.history.length > 1) {
       wrap.appendChild(h('div', { class: 'ad-note', text: 'Storico prezzo: ' + savedItem.history.map(function (x) { return eur(x.p); }).join(' → ') }));
@@ -974,10 +965,10 @@
 
     var saveBtn = h('button', { class: 'sbtn ghost' + (isSaved(base) ? ' on-star' : ''), type: 'button', on: { click: function () {
       toggleSave(Object.assign({}, base, ad ? { image: (ad.photos || [])[0] || base.image, price: ad.price || base.price, km: ad.km || base.km, year: ad.year || base.year, cv: ad.cv || base.cv } : {})).then(function () {
-        setLabel(saveBtn, 'star', isSaved(base) ? 'Salvato' : 'Salva');
+        setLabel(saveBtn, 'star', isSaved(base) ? 'Salvata' : 'Salva');
         saveBtn.classList.toggle('on-star', isSaved(base));
       });
-    } } }, it2('star', isSaved(base) ? 'Salvato' : 'Salva'));
+    } } }, it2('star', isSaved(base) ? 'Salvata' : 'Salva'));
     var siteName = SITE_NAMES[openSite.id] || openSite.name;
     wrap.appendChild(h('div', { class: 'ad-actions' }, [
       h('a', { class: 'sbtn wide', href: openUrl, target: '_blank', rel: 'noopener' }, it2('external-link', 'Apri su ' + siteName)),
@@ -1020,8 +1011,8 @@
     // cosa dice la descrizione, ben in vista prima della scheda tecnica
     var fl = adFlags(a, ad && ad.description);
     if (fl.length) {
-      fl.sort(function (x, y) { return (y.bad ? 1 : 0) - (x.bad ? 1 : 0); });
-      wrap.appendChild(h('div', { class: 'flagbox' + (fl.some(function (f) { return f.bad; }) ? ' has-bad' : '') }, [
+      fl.sort(function (x, y) { return flagRank(x) - flagRank(y); });
+      wrap.appendChild(h('div', { class: 'flagbox' + (fl.some(function (f) { return f.bad; }) ? ' has-bad' : fl.some(function (f) { return f.warn; }) ? ' has-warn' : '') }, [
         h('div', { class: 'flagbox-title', text: 'Dalla descrizione' }),
         h('div', { class: 'flags' }, fl.map(flagNode))
       ]));
@@ -1039,8 +1030,11 @@
       ]));
     }
 
+    if (ad && !ad.description && !loading) {
+      wrap.appendChild(h('div', { class: 'section' }, [h('h3', { text: 'Descrizione' }), h('p', { class: 'muted', text: 'Il venditore non ha scritto una descrizione.' })]));
+    }
     if (ad && ad.description) {
-      var desc = h('div', { class: 'desc' + (ad.description.length > 600 ? ' clamp' : ''), text: ad.description });
+      var desc = h('div', { class: 'desc', text: ad.description });
       var sec = h('div', { class: 'section' }, [h('h3', { text: 'Descrizione' })]);
       var lang = window.CA_LANG ? window.CA_LANG.detect(ad.description) : 'it';
       // testi corti: la lingua si capisce anche dal sito (Kleinanzeigen = tedesco, Marktplaats = olandese)
@@ -1055,9 +1049,6 @@
       }
       if (lang !== 'it') sec.appendChild(autoTranslate(ad.description, lang, desc, function (on) { if (eqBox) fillEq(on && eqTr ? eqTr : eqOrig); }));
       sec.appendChild(desc);
-      if (ad.description.length > 600) {
-        sec.appendChild(h('button', { class: 'link', type: 'button', text: 'Mostra tutto', on: { click: function () { desc.classList.remove('clamp'); this.remove(); } } }));
-      }
       wrap.appendChild(sec);
     }
     if (ad && ad.equipment && ad.equipment.length) {
@@ -1201,7 +1192,6 @@
   }
 
   function feedCard(it) {
-    var meta = [it.year, kmf(it.km), cap(it.fuel), it.cv ? it.cv + '\u00a0CV' : ''].filter(Boolean).join(' · ');
     var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
@@ -1209,7 +1199,7 @@
     var why = it.reason === 'affare' ? it2('badge-percent', it.label || 'Affare')
       : it.reason === 'recente' ? it2('clock', it.postedLabel || (it.posted ? 'Pubblicato ' + agoShort(it.posted) : 'Nuovo annuncio'))
       : it2('gem', it.label || 'Da appassionati');
-    return h('a', { class: 'fcard', href: '#/annuncio?u=' + encodeURIComponent(it.url) }, [
+    return h('a', { class: 'fcard' + (isSaved(it) ? ' saved-on' : ''), href: '#/annuncio?u=' + encodeURIComponent(it.url), 'data-key': keyOf(it) }, [
       h('div', { class: 'ph' }, [
         photoStrip(it),
         h('span', { class: 'why ' + (it.reason || '') }, why)
@@ -1217,7 +1207,7 @@
       h('div', { class: 'bd' }, [
         h('div', { class: 'tt' }, titleNodes(it)),
         h('div', { class: 'prow' }, [h('span', { class: 'fprice', text: eur(it.price) }), dealBadge(it)]),
-        meta ? h('div', { class: 'mt', text: meta }) : null,
+        specChips(it),
         flagRow(it, 2),
         it.fact ? h('div', { class: 'fact' }, it2('sparkles', it.fact)) : null,
         h('div', { class: 'ft' }, tags)
@@ -1315,6 +1305,7 @@
   function renderSavedCount() {
     $('savedCount').hidden = !state.saved.length;
     $('savedCount').textContent = state.saved.length;
+    markSaved();
   }
 
   function toggleSave(it) {
@@ -1371,7 +1362,6 @@
 
   function savedCard(x) {
     var drop = priceDrop(x);
-    var meta = [kmf(x.km), x.year, cap(x.fuel), x.cv ? x.cv + ' CV' : ''].filter(Boolean).join(' · ');
     var tags = [h('span', { class: 'tag ' + (SITE_SHORT[x.site] ? x.site : 'altro'), text: SITE_SHORT[x.site] || X.detectSite(x.url).name })];
     (x.alts || []).forEach(function (u) { var s = X.detectSite(u).id; tags.push(h('span', { class: 'tag ' + (SITE_SHORT[s] ? s : 'altro'), text: '+' + (SITE_SHORT[s] || s) })); });
     tags.push(h('span', { text: 'salvato ' + ago(x.savedAt) }));
@@ -1385,7 +1375,7 @@
           drop ? h('span', { class: 'chg mini-ic ' + (drop > 0 ? 'down' : 'up') }, it2(drop > 0 ? 'trending-down' : 'trending-up', eur(Math.abs(drop)))) : null,
           x.removed ? h('span', { class: 'gone', text: 'Non più disponibile' }) : null
         ]),
-        meta ? h('div', { class: 'mt', text: meta }) : null,
+        specChips(x),
         h('div', { class: 'ft' }, tags)
       ]),
       h('div', { class: 'note mini-ic' }, x.note ? it2('pencil', x.note) : []),

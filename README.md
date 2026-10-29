@@ -9,12 +9,15 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 
 - **Home**: in alto "Cerca un'auto" (con **Azzera filtri** sempre a portata, senza aprire il pannello), sotto **Da scoprire**,
   un feed infinito in tre modalità:
-  - **Appassionati**: 140+ auto da appassionati (Delta Integrale, MX-5, E30, Saab Aero, Pajero, Elise, Supra…) con una
-    curiosità su ognuna, negli anni giusti. Ordine casuale (pulsante "mescola"), mai due di fila dello stesso modello;
-  - **Offerte**: 90+ modelli diffusi con prezzo sotto il mercato secondo AutoScout24;
-  - **Recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit (e Kleinanzeigen, Marktplaats).
+  - **Appassionati**: circa 140 auto da appassionati (Delta Integrale, MX-5, E30, Saab Aero, Pajero, Elise, Supra…) con una
+    curiosità su ognuna. Ogni annuncio deve essere davvero quel modello, quella versione (parola intera: "GT", "RS"/"R.S.",
+    "Type R") e in quegli anni: niente Punto qualsiasi o Micra.
+  - **Offerte**: 90+ modelli diffusi; per ognuno l'annuncio più sotto il prezzo di almeno 5 auto simili (12-40% sotto),
+    oppure segnalato da AutoScout24. Esclusi annunci con problemi scritti, km falsi, auto nuove/km 0.
+  - **Recenti**: gli ultimi annunci pubblicati.
 
-  Ogni pagina mescola 8-9 modelli di **marche tutte diverse**, al massimo 2 annunci per modello, mai due della stessa marca di fila.
+  Ogni pagina ha 12 modelli di **marche tutte diverse** e **un solo annuncio per modello**, preso ogni volta da un sito a caso:
+  tante auto diverse, niente blocchi della stessa.
 
   Quattro filtri per il feed, in due righe: **prezzo**, **km**, **tipo** (city car, berlina, station wagon, coupé, cabrio,
   SUV) e **dove** (Italia + estero o solo Italia). Nel feed vanno solo annunci con foto.
@@ -25,9 +28,10 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
   esplicitamente la raccolta automatica (robots.txt: "Collection of data on Facebook through automated means is prohibited")
   e Marketplace richiede il login.
 - **Km falsi esclusi**: meno di 1.000 km su un'auto di almeno 2 anni (o senza anno), oppure numeri tipo 111.111 o 123.456.
-- **Avvisi dalla descrizione**, in verde o in rosso, sulle card e in un riquadro "Dalla descrizione" nella scheda:
-  motore rifatto, distribuzione fatta, frizione nuova, tagliandi documentati, un solo proprietario, storica/ASI;
-  motore da rifare, cambio da rifare, non marciante, per ricambi, da sistemare, incidentata, grandinata, revisione scaduta,
+- **Avvisi dalla descrizione**, in verde, giallo o rosso, sulle card e in un riquadro "Dalla descrizione" nella scheda:
+  distribuzione fatta, frizione nuova, tagliandi documentati, un solo proprietario, storica/ASI;
+  da verificare (giallo): motore rifatto (chiedi fatture e lavori);
+  problemi (rosso): motore da rifare, cambio da rifare, non marciante, per ricambi, da sistemare, incidentata, grandinata, revisione scaduta,
   km non garantiti. Capisce italiano, tedesco, olandese e inglese, e le negazioni ("mai incidentata" non è un problema).
 - **Ricerca rapida**: marca e modello si scrivono con la tastiera e la lista si filtra mentre scrivi
   ("mercedes" → Mercedes-Benz, "classe c" → Classe C); poi prezzo massimo e anno minimo; tutto il resto è in "Altri filtri"
@@ -50,9 +54,11 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 - **Ban list** (condivisa): modelli precisi da non vedere mai, né nelle ricerche né nella home (si parte con Abarth 500).
   Si gestisce in fondo alla pagina Salvati, oppure dalla scheda di un annuncio con "Non mostrarmi più <modello>".
 - **Niente auto elettriche**, mai (scelta fissa dell'app; le ibride restano).
-- **Affare?** Per AutoScout24 c'è la loro valutazione di mercato (da "Affare" a "Molto caro"); per gli altri siti
-  una stima sugli annunci della ricerca (prezzo in base ad anno e km), mostrata solo quando segnala un buon prezzo
-  (la stima mescola versioni diverse, quindi "caro" non sarebbe affidabile).
+- **Affare?** Ogni auto è confrontata con **auto simili**: stesso modello, stessa alimentazione, anno ±2, km vicini,
+  potenza ±25%. Con almeno 5 simili il prezzo tipico è la loro mediana (un prezzo assurdo non sposta niente) e l'etichetta
+  dice di quanto è sotto o sopra ("Affare −23%", "Caro +25%", "Troppo basso?" sotto il −40%). Senza potenza o alimentazione
+  nell'annuncio, o con meno di 5 simili, niente etichetta: meglio nessuna che una sbagliata. Per AutoScout24 vale anche la loro
+  valutazione di mercato. Un annuncio con problemi scritti (motore da rifare, ricambi…) non è mai "affare".
 - **NUOVO**: gli annunci che non avevi mai visto prima sono segnati; quelli già aperti sono più chiari.
 - **Pagina annuncio dentro l'app**: galleria foto, scheda tecnica, descrizione completa, dotazioni, venditore
   (con telefono quando il sito lo mostra), da quanto è online, valutazione di mercato. Poi, se vuoi,

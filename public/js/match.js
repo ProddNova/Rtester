@@ -115,7 +115,8 @@
     { k: 'revisione', t: 'Revisione scaduta', bad: true, re: /revisione scaduta|senza revisione|t(?:u|ü)v (?:abgelaufen|f(?:a|ä)llig)|ohne t(?:u|ü)v|apk verlopen|zonder apk/ },
     { k: 'km', t: 'Km non garantiti', bad: true, re: /km non (?:garantiti|certificati|reali)|chilometraggio non (?:garantito|certificato)|tachostand nicht|km stand onbekend|km niet logisch/ },
     // segnali buoni
-    { k: 'motore-ok', t: 'Motore rifatto', re: /motore (?:(?:appena |completamente |totalmente )?(?:rifatto|revisionato|rigenerato|ricostruito)|nuovo|sostituito|a zero ore)|motor (?:neu|(?:general)?(?:u|ü)berholt|revidiert|getauscht|gereviseerd|nieuw|vervangen|revisie)|engine (?:rebuilt|rebuild|overhauled)/ },
+    // "rifatto" va verificato (fatture, chi l'ha fatto, perché): è un avviso, non un pregio
+    { k: 'motore-ok', t: 'Motore rifatto', warn: true, re: /motore (?:(?:appena |completamente |totalmente )?(?:rifatto|revisionato|rigenerato|ricostruito)|nuovo|sostituito|a zero ore)|motor (?:neu|(?:general)?(?:u|ü)berholt|revidiert|getauscht|gereviseerd|nieuw|vervangen|revisie)|engine (?:rebuilt|rebuild|overhauled)/ },
     { k: 'distribuzione', t: 'Distribuzione fatta', re: /distribuzione (?:appena )?(?:fatta|sostituita|nuova|eseguita)|(?:kit|cinghia) (?:di )?distribuzione (?:fatt|sostituit|nuov|eseguit)|cinghia (?:appena )?(?:sostituita|nuova|cambiata)|zahnriemen (?:neu|gewechselt|erneuert)|distributieriem (?:vervangen|nieuw)|distributie (?:vervangen|nieuw)|timing belt (?:replaced|done)/ },
     { k: 'frizione', t: 'Frizione nuova', re: /frizione (?:appena )?(?:nuova|sostituita|rifatta|cambiata)|kupplung (?:neu|erneuert|gewechselt)|koppeling (?:nieuw|vervangen)/ },
     { k: 'tagliandi', t: 'Tagliandi documentati', re: /tagliandi (?:certificati|documentati|regolari|ufficiali)|libretto (?:dei )?tagliandi|scheckheft|dealer onderhouden|onderhoudsboekje|full service history/ },
@@ -136,12 +137,21 @@
       }
       if (f.k === 'motore-ok' && seen['motore-ko']) return;
       seen[f.k] = 1;
-      out.push({ k: f.k, t: f.t, bad: !!f.bad });
+      out.push({ k: f.k, t: f.t, bad: !!f.bad, warn: !!f.warn });
     });
     return out;
   }
 
-  var api = { words: words, text: text, isFakeKm: isFakeKm, normBody: normBody, flags: flags, makeHit: makeHit, modelHit: modelHit, isModel: isModel, banned: banned, isElectric: isElectric };
+  // Parola chiave della versione ("rs", "gti", "type r", "integrale") come parola intera, anche scritta "R.S."
+  function kwHit(t, kw) {
+    if (!kw) return true;
+    if (modelHit(t, kw)) return true;
+    var k = strip(kw).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (k.length <= 3 && t.indexOf(' ' + k.split('').join(' ') + ' ') !== -1) return true; // "r s", "g t i"
+    return k.length >= 4 && t.replace(/ /g, '').indexOf(k) !== -1;
+  }
+
+  var api = { words: words, kwHit: kwHit, text: text, isFakeKm: isFakeKm, normBody: normBody, flags: flags, makeHit: makeHit, modelHit: modelHit, isModel: isModel, banned: banned, isElectric: isElectric };
   root.CA_MATCH = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

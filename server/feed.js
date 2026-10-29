@@ -7,6 +7,7 @@
 const { getPage } = require('./fetch');
 const DEDUP = require('../public/js/dedup.js');
 const MATCH = require('../public/js/match.js');
+const DEALS = require('../public/js/deals.js');
 const GEO = require('./geo');
 const AS = require('./sources/autoscout');
 const SUB = require('./sources/subito');
@@ -159,44 +160,64 @@ async function feed(page, opts) {
   const jobs = [];
 
   if (opts.mode === 'offerte') {
-    // ordine casuale ma fisso per questo seme: pagina dopo pagina si scorrono modelli sempre diversi
+    // 12 modelli di marche diverse per pagina; per ognuno l'annuncio più sotto il prezzo di auto simili
     const popOrder = shuffle(POPULAR.filter(([make, model, b]) => ok(make, model) && (!body || b === body)), rng(seed + 1));
     if (!popOrder.length) return done([], false);
-    const popPages = pages(popOrder, 9);
+    const popPages = pages(popOrder, 12);
     popPages[page % popPages.length].forEach(([make, model]) => {
       const s = { make, model, ymin: '2008', pmax: String(o.pmax || 30000), kmmax: o.kmmax ? String(o.kmmax) : '', body, sort: 'rilevanza' };
-      // affari secondo la valutazione di AutoScout24 (1 = ottimo, 2 = buon prezzo)
-      jobs.push(fromAS(Object.assign({ europe: abroad }, s)).then((items) => sample(items.filter((it) => (it.deal === 1 || it.deal === 2) && within(it, o)), 2, rand)
-        .map((it) => Object.assign(it, { reason: 'affare', label: it.deal === 1 ? 'Affare' : 'Buon prezzo', _g: make }))));
+      jobs.push(Promise.all([fromAS(Object.assign({ europe: abroad }, s)), fromSubito(s)]).then(([a, b]) => {
+        const all = a.concat(b).filter((it) => MATCH.modelHit(MATCH.text(it), model) && within(it, o));
+        DEALS.estimate(all, { oneModel: true });
+        const good = all.filter((it) => {
+          if (MATCH.flags([it.title, it.version, it.snippet].join(' ')).some((f) => f.bad)) return false; // motore da rifare, ricambi...
+          if (it.km < 5000) return false; // auto nuove/km 0: sono promozioni, non affari
+          const sim = it.estHow === 'simili';
+          if (sim && it.dev < -0.4) return false; // troppo basso rispetto alle simili: sospetto
+          // sotto il prezzo di almeno 5 auto simili, oppure "affare" per AutoScout24 (e non sopra le simili)
+          return (sim && it.dev <= -0.12) || ((it.deal === 1 || it.deal === 2) && (!sim || it.dev <= 0));
+        }).sort((x, y) => (x.estHow === 'simili' ? x.dev : -0.1) - (y.estHow === 'simili' ? y.dev : -0.1));
+        const best = good[0];
+        if (!best) return [];
+        const pct = best.estHow === 'simili' ? Math.round(-best.dev * 100) : 0;
+        const label = pct ? (pct >= 15 ? 'Affare' : 'Buon prezzo') + ' · −' + pct + '% sulle simili' : (best.deal === 1 ? 'Affare' : 'Buon prezzo') + ' per AutoScout24';
+        return [Object.assign(best, { reason: 'affare', label, _g: make })];
+      }));
     });
     const all = [].concat(...(await Promise.all(jobs)));
-    return done(spread(DEDUP.mergeListings([], all), rand), page < popPages.length * 2);
+    return done(spread(DEDUP.mergeListings([], all), rand), page < popPages.length * 3);
   }
 
-  // Da appassionati
+  // Da appassionati: 12 modelli di marche diverse per pagina, UN annuncio per modello da un sito a caso
   const list = RARE.filter((r) => ok(r.make, r.model) && (!body || r.b === body));
-  const rareOrder = shuffle(list, rng(seed));
   if (!list.length) return done([], false);
-  const rarePages = pages(rareOrder, 8);
+  const rarePages = pages(shuffle(list, rng(seed)), 12);
+  // giri successivi della lista: stessi modelli, annunci diversi
+  const cycle = Math.floor(page / rarePages.length);
   rarePages[page % rarePages.length].forEach((r) => {
     const pmax = o.pmax ? Math.min(o.pmax, r.p) : r.p;
     const s = { make: r.make, model: r.model, kw: r.kw || '', ymin: String(r.y[0]), ymax: String(r.y[1]), pmax: String(pmax), kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'rilevanza' };
-    const tag = { reason: 'rara', label: 'Da appassionati', fact: r.f };
-    // dall'estero una fonte a caso per auto (Germania o Olanda), così le richieste restano poche
-    const foreign = !abroad ? Promise.resolve([]) : rand() < 0.6 ? fromKA(s) : fromMP(s);
-    jobs.push(Promise.all([fromAS(Object.assign({ europe: abroad }, s)), fromSubito(s), foreign]).then(([a, b, c]) => {
-      const okIt = (it) => kwOk(it, r.kw) && within(it, o);
-      // Kleinanzeigen/Marktplaats cercano a parole: il modello deve comparire nel titolo
-      const okF = (it) => okIt(it) && kwOk(it, /^(Serie|Classe) /.test(r.model) ? '' : r.model) &&
+    const tag = { reason: 'rara', label: 'Da appassionati', fact: r.f, _g: r.make };
+    // deve essere davvero quel modello, quella versione e in quegli anni (alcuni siti aggiungono auto "simili")
+    const right = (it) => {
+      const t = MATCH.text(it) + MATCH.words(String(it.snippet || '').slice(0, 120));
+      return MATCH.modelHit(t, r.model) && MATCH.kwHit(t, r.kw) && within(it, o) &&
         it.price <= pmax && (!it.year || (it.year >= r.y[0] && it.year <= r.y[1]));
-      // al massimo 2 annunci per modello, da siti diversi quando si può: più varietà
-      const one = [sample(a.filter(okIt), 1, rand), sample(b.filter(okIt), 1, rand), sample(c.filter(okF), 1, rand)];
-      const picked = sample([].concat(...one), 2, rand);
-      return picked.map((it) => Object.assign(it, tag, { _g: r.make }));
-    }));
+    };
+    const sources = [() => fromAS(Object.assign({ europe: abroad }, s), 1 + cycle % 2), () => fromSubito(s)];
+    if (abroad) sources.push(rand() < 0.6 ? () => fromKA(s) : () => fromMP(s));
+    const order = shuffle(sources, rand);
+    const r1 = rand();
+    jobs.push((async () => {
+      for (const get of order) {
+        const found = (await get()).filter(right);
+        if (found.length) return [Object.assign(found[Math.floor(r1 * Math.min(found.length, 10))], tag)];
+      }
+      return [];
+    })());
   });
   const all = [].concat(...(await Promise.all(jobs)));
-  return done(spread(DEDUP.mergeListings([], all), rand), page < rarePages.length * 2);
+  return done(spread(DEDUP.mergeListings([], all), rand), page < rarePages.length * 3);
 }
 
 module.exports = { feed, RARE, POPULAR, spread, rng, pages };

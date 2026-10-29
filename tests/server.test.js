@@ -297,3 +297,10 @@ test('alimentazione e cambio in tedesco e olandese', () => {
   assert.deepStrictEqual(['Benzin', 'Benzine', 'Elektro', 'Hybride', 'Erdgas', 'Autogas (LPG)'].map(normFuel), ['benzina', 'benzina', 'elettrica', 'ibrida', 'metano', 'gpl']);
   assert.deepStrictEqual(['Manuell', 'Handgeschakeld', 'Automaat', 'Automatik'].map(normGear), ['manuale', 'manuale', 'automatico', 'automatico']);
 });
+
+test('Subito: descrizione lunga scritta a parte ("$4b" -> blocco di testo)', () => {
+  const SUB = require('../server/sources/subito');
+  const txt = 'Auto perfetta, tagliandi regolari. Però: è già tutto fatto';
+  const payload = '0:["x"]\n4b:T' + Buffer.byteLength(txt).toString(16) + ',' + txt + '5:["altro"]';
+  assert.strictEqual(SUB.textChunk(payload, '4b'), txt);
+});
