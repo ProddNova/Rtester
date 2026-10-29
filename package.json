@@ -1,0 +1,10 @@
+{
+  "name": "cacciauto",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sito statico per cercare auto usate su tutti i principali siti italiani con un solo set di filtri.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "python3 -m http.server 8080"
+  }
+}

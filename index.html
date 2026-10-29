@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>CacciAuto</title>
+  <meta name="description" content="Cerca auto usate su Subito, AutoScout24, AutoSuperMarket, Automobile.it, ilParking e Marketplace con un solo set di filtri.">
+  <meta name="theme-color" content="#0d0f14">
+  <meta name="color-scheme" content="dark">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="CacciAuto">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">🏁</span>
+      <div>
+        <h1>CacciAuto</h1>
+        <p class="sub">Tutti i siti di usato, un colpo solo</p>
+      </div>
+    </div>
+    <button class="icon-btn" id="btnHelp" aria-label="Come funziona">?</button>
+  </header>
+
+  <main>
+    <!-- ================= CERCA ================= -->
+    <section id="view-search" class="view active" aria-label="Cerca">
+      <div class="searchbox">
+        <span class="search-ico" aria-hidden="true">🔍</span>
+        <input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false"
+               placeholder="es. saab 9-3 aero diesel sotto 5k" aria-label="Cosa cerchiamo?">
+        <button class="clear-q" id="clearQ" aria-label="Cancella">✕</button>
+      </div>
+      <div id="suggest" class="suggest" hidden></div>
+      <div id="parsed" class="parsed"></div>
+
+      <div class="row-scroll" id="presets" aria-label="Ricerche veloci"></div>
+
+      <div class="card">
+        <div class="f-head"><span>💶 Budget</span><span class="f-val" id="v-price">qualsiasi</span></div>
+        <div class="pair">
+          <input type="number" inputmode="numeric" id="pmin" placeholder="da €" min="0" step="500">
+          <input type="number" inputmode="numeric" id="pmax" placeholder="a €" min="0" step="500">
+        </div>
+        <div class="chips" data-quick="pmax">
+          <button data-v="2000">2k</button><button data-v="5000">5k</button><button data-v="8000">8k</button>
+          <button data-v="12000">12k</button><button data-v="20000">20k</button><button data-v="">∞</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="f-head"><span>📅 Anno</span><span class="f-val" id="v-year">qualsiasi</span></div>
+        <div class="pair">
+          <input type="number" inputmode="numeric" id="ymin" placeholder="dal" min="1950" max="2030">
+          <input type="number" inputmode="numeric" id="ymax" placeholder="al" min="1950" max="2030">
+        </div>
+        <div class="chips" data-quick="year">
+          <button data-v="1980-1989">anni 80</button><button data-v="1990-1999">anni 90</button>
+          <button data-v="2000-2009">2000-09</button><button data-v="2010-">2010+</button><button data-v="2018-">2018+</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="f-head"><span>🛣️ Km massimi</span><span class="f-val" id="v-km">qualsiasi</span></div>
+        <div class="chips single" id="c-km">
+          <button data-v="50000">50k</button><button data-v="100000">100k</button><button data-v="150000">150k</button>
+          <button data-v="200000">200k</button><button data-v="250000">250k</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="f-head"><span>⛽ Alimentazione</span></div>
+        <div class="chips single" id="c-fuel"></div>
+        <div class="f-head mt"><span>🕹️ Cambio</span></div>
+        <div class="chips single" id="c-gear"></div>
+      </div>
+
+      <div class="card">
+        <div class="f-head"><span>📍 Zona</span></div>
+        <select id="region" aria-label="Regione">
+          <option value="">🇮🇹 Tutta Italia</option>
+        </select>
+        <label class="toggle">
+          <input type="checkbox" id="europe">
+          <span>🇪🇺 Anche estero (Germania &amp; co.) su AutoScout24</span>
+        </label>
+      </div>
+
+      <details class="card more" id="moreFilters">
+        <summary>➕ Altri filtri <span class="f-val" id="v-more"></span></summary>
+        <div class="f-head mt"><span>🚘 Carrozzeria</span></div>
+        <div class="chips single" id="c-body"></div>
+        <div class="f-head mt"><span>🐎 Potenza (CV)</span></div>
+        <div class="pair">
+          <input type="number" inputmode="numeric" id="cvmin" placeholder="da CV" min="0">
+          <input type="number" inputmode="numeric" id="cvmax" placeholder="a CV" min="0">
+        </div>
+      </details>
+
+      <div class="actions-row">
+        <button class="ghost" id="btnReset">🧽 Azzera filtri</button>
+        <button class="ghost" id="btnShareSearch">📤 Manda al socio</button>
+      </div>
+
+      <div class="giro" id="giro">
+        <div class="giro-head">
+          <h2>🏁 Il giro dei siti</h2>
+          <span class="giro-count" id="giroCount">0/6</span>
+        </div>
+        <div class="progress"><span id="giroBar"></span></div>
+        <div class="chips single sort" id="c-sort" aria-label="Ordina"></div>
+        <div id="sites" class="sites"></div>
+        <p class="hint">I filtri che un sito non supporta li vedi scritti sotto il nome: lì vanno messi a mano.</p>
+      </div>
+
+      <div class="cta-bar" id="ctaBar">
+        <div class="cta-sum" id="ctaSum">Tutte le auto</div>
+        <button class="cta" id="btnNext">Apri Subito ➜</button>
+      </div>
+    </section>
+
+    <!-- ================= BACHECA ================= -->
+    <section id="view-board" class="view" aria-label="Bacheca">
+      <div class="who card">
+        <span>Qui sono:</span>
+        <div class="seg" id="whoSeg">
+          <button data-who="a"></button>
+          <button data-who="b"></button>
+        </div>
+        <button class="icon-btn sm" id="btnNames" aria-label="Cambia nomi">✏️</button>
+      </div>
+
+      <div class="card add">
+        <div class="f-head"><span>➕ Aggiungi un annuncio</span></div>
+        <div class="paste-row">
+          <input id="addUrl" type="url" inputmode="url" placeholder="Incolla il link dell'annuncio" autocomplete="off">
+          <button class="ghost sm" id="btnPaste">📋</button>
+        </div>
+        <div id="addMore" hidden>
+          <input id="addTitle" type="text" placeholder="Titolo (es. Saab 9-3 Aero)">
+          <div class="triple">
+            <input id="addPrice" type="number" inputmode="numeric" placeholder="€">
+            <input id="addKm" type="number" inputmode="numeric" placeholder="km">
+            <input id="addYear" type="number" inputmode="numeric" placeholder="anno">
+          </div>
+          <input id="addNote" type="text" placeholder="Nota (es. ruggine passaruota, da vedere)">
+          <div class="dup-warn" id="addDup" hidden></div>
+          <button class="cta full" id="btnAdd">Metti in bacheca ⭐</button>
+        </div>
+        <p class="hint" id="shareHint">Su Android: installa l'app e usa "Condividi → CacciAuto" direttamente dall'annuncio.</p>
+      </div>
+
+      <div class="chips single sort" id="c-boardSort"></div>
+      <div id="board" class="board"></div>
+
+      <div class="actions-row wrap">
+        <button class="ghost" id="btnShareBoard">📤 Manda al socio</button>
+        <button class="ghost" id="btnImport">📥 Importa</button>
+        <button class="ghost danger" id="btnClear">🗑️ Svuota</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" aria-label="Sezioni">
+    <button class="tab active" data-view="search"><span>🔍</span>Cerca</button>
+    <button class="tab dice" id="btnRoulette" aria-label="Roulette"><span>🎲</span></button>
+    <button class="tab" data-view="board"><span>⭐</span>Bacheca<b class="badge" id="boardBadge" hidden>0</b></button>
+  </nav>
+
+  <!-- Roulette -->
+  <dialog id="dlgRoulette" class="sheet">
+    <div class="sheet-body">
+      <h2>🎲 Roulette</h2>
+      <p class="muted">Non sai cosa cercare? Lascia scegliere al destino.</p>
+      <div class="slot" id="slot">
+        <div class="slot-emoji" id="slotEmoji">🚗</div>
+        <div class="slot-name" id="slotName">Pronti?</div>
+        <div class="slot-meta" id="slotMeta">&nbsp;</div>
+      </div>
+      <p class="fact" id="slotFact"></p>
+      <label class="toggle"><input type="checkbox" id="rouletteBudget"> <span>Solo auto nel mio budget</span></label>
+      <div class="actions-row">
+        <button class="ghost" id="btnSpin">🎲 Gira</button>
+        <button class="cta" id="btnUseSpin" disabled>Cercala! 🔍</button>
+      </div>
+      <button class="close" data-close aria-label="Chiudi">✕</button>
+    </div>
+  </dialog>
+
+  <!-- Testo generico (aiuto, import, nomi) -->
+  <dialog id="dlgText" class="sheet">
+    <form method="dialog" class="sheet-body" id="dlgTextForm">
+      <h2 id="dlgTextTitle"></h2>
+      <div id="dlgTextBody"></div>
+      <div class="actions-row" id="dlgTextActions"></div>
+      <button class="close" value="cancel" aria-label="Chiudi">✕</button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+
+  <script src="js/data.js"></script>
+  <script src="js/sites.js"></script>
+  <script src="js/parse.js"></script>
+  <script src="js/dedup.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
