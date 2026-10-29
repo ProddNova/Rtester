@@ -33,6 +33,10 @@
   <!-- ================= HOME: ricerca rapida + feed ================= -->
   <main id="view-search" class="view">
     <form id="searchForm" autocomplete="off" class="quick card">
+      <div class="card-head">
+        <h2>Cerca un'auto</h2>
+        <button type="button" class="link" id="btnClear" hidden>Azzera filtri</button>
+      </div>
       <div class="grid2">
         <label>Marca<span class="combo"><input name="make" id="fMake" type="text" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" placeholder="Tutte"><button type="button" class="clear" tabindex="-1" aria-label="Cancella" data-icon="x"></button></span></label>
         <label>Modello<span class="combo"><input name="model" id="fModel" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="done" placeholder="Prima la marca" disabled><button type="button" class="clear" tabindex="-1" aria-label="Cancella" data-icon="x"></button></span></label>
@@ -48,6 +52,8 @@
       <div class="adv" id="adv" hidden>
         <div class="adv-panel">
           <div class="sheet-title"><h2>Altri filtri</h2><button type="button" class="ibtn sm" id="btnAdvClose" aria-label="Chiudi" data-icon="x"></button></div>
+          <h3 class="block-title">Filtri veloci</h3>
+          <div class="chips-row quick-row" id="quickChips"></div>
           <div class="grid2">
             <label class="span2">Versione / parole chiave<input name="kw" type="text" maxlength="40" placeholder="es. GTI, Aero, Quattro, Vector" autocapitalize="off"></label>
             <label>Prezzo da<select name="pmin" data-list="price"><option value="">Qualsiasi</option></select></label>
@@ -80,16 +86,6 @@
       </div>
     </form>
 
-    <!-- scorciatoie e ricerche fatte: due blocchi con titolo, una riga ciascuno -->
-    <section class="block">
-      <h3 class="block-title">Scorciatoie</h3>
-      <div class="chips-row" id="quickChips"></div>
-    </section>
-    <section class="block" id="blockMine" hidden>
-      <h3 class="block-title">Le tue ricerche</h3>
-      <div class="chips-row"><span class="contents" id="savedSearches"></span><span class="contents" id="recentSearches"></span></div>
-    </section>
-
     <!-- feed: titolo, scelta del tipo, filtri compatti -->
     <section class="feed-sec">
       <div class="sec-head">
@@ -97,13 +93,15 @@
         <button class="ibtn sm shuffle" id="btnFeedRefresh" type="button" aria-label="Mescola" title="Mescola" data-icon="shuffle"></button>
       </div>
       <div class="seg" id="feedMode" role="tablist" aria-label="Cosa mostrare">
-        <button type="button" data-mode="mix" data-icon="gem">Consigliati</button>
-        <button type="button" data-mode="recenti" data-icon="clock">Più recenti</button>
+        <button type="button" data-mode="rare" data-icon="gem">Appassionati</button>
+        <button type="button" data-mode="offerte" data-icon="badge-percent">Offerte</button>
+        <button type="button" data-mode="recenti" data-icon="clock">Recenti</button>
       </div>
       <div class="pills">
         <label class="pill"><select id="feedPmax" data-list="price" aria-label="Prezzo massimo"><option value="">Prezzo: tutti</option></select></label>
         <label class="pill"><select id="feedKm" data-list="km" aria-label="Km massimi"><option value="">Km: tutti</option></select></label>
-        <label class="pill"><select id="feedArea" aria-label="Dove"><option value="eu">Ovunque</option><option value="it">Solo Italia</option></select></label>
+        <label class="pill"><select id="feedBody" aria-label="Tipo di auto"><option value="">Tipo: tutti</option></select></label>
+        <label class="pill"><select id="feedArea" aria-label="Dove"><option value="eu">Italia + estero</option><option value="it">Solo Italia</option></select></label>
       </div>
     </section>
     <div id="feed" class="feed"></div>
@@ -150,29 +148,43 @@
 
   <!-- ================= SALVATI ================= -->
   <main id="view-saved" class="view">
-    <div class="board-head">
-      <h2>Salvati</h2>
-      <select id="savedSort" aria-label="Ordina salvati">
-        <option value="nuovi">Ultimi salvati</option>
-        <option value="prezzo">Prezzo più basso</option>
-        <option value="calo">Prezzo sceso</option>
-      </select>
+    <h2 class="page-title">I tuoi</h2>
+    <div class="seg tabs" id="savedTabs" role="tablist">
+      <button type="button" data-tab="auto" data-icon="star">Auto</button>
+      <button type="button" data-tab="ricerche" data-icon="history">Ricerche</button>
+      <button type="button" data-tab="ban" data-icon="ban">Ban list</button>
     </div>
-    <div id="storeWarn" class="alert" hidden></div>
-    <div class="addrow">
-      <input id="addUrl" type="url" inputmode="url" placeholder="Incolla un link (anche Subito o Marketplace)" autocomplete="off">
-      <button class="sbtn" id="btnAdd">Aggiungi</button>
-    </div>
-    <div id="addMsg" class="addmsg" hidden></div>
-    <div class="board-tools">
-      <span class="muted" id="savedInfo"></span>
-      <button class="link" id="btnCheck" data-icon="refresh-cw">Controlla prezzi</button>
-    </div>
-    <div id="saved" class="list"></div>
 
-    <section class="banbox" id="banbox">
-      <h2>Ban list</h2>
-      <p class="muted">Modelli che non compaiono mai, né nelle ricerche né nella home. Vale per tutti. Le auto elettriche sono escluse sempre.</p>
+    <section class="tab" id="tab-auto">
+      <div class="board-head">
+        <span class="muted" id="savedInfo"></span>
+        <select id="savedSort" aria-label="Ordina salvati">
+          <option value="nuovi">Ultimi salvati</option>
+          <option value="prezzo">Prezzo più basso</option>
+          <option value="calo">Prezzo sceso</option>
+        </select>
+      </div>
+      <div id="storeWarn" class="alert" hidden></div>
+      <div class="addrow">
+        <input id="addUrl" type="url" inputmode="url" placeholder="Incolla un link (anche Subito o Marketplace)" autocomplete="off">
+        <button class="sbtn" id="btnAdd">Aggiungi</button>
+      </div>
+      <div id="addMsg" class="addmsg" hidden></div>
+      <div class="board-tools">
+        <button class="link" id="btnCheck" data-icon="refresh-cw">Controlla prezzi</button>
+      </div>
+      <div id="saved" class="list"></div>
+    </section>
+
+    <section class="tab" id="tab-ricerche" hidden>
+      <h3 class="block-title">Salvate (le vedete tutti e due)</h3>
+      <div id="savedSearches" class="rows"></div>
+      <h3 class="block-title">Ultime fatte su questo telefono</h3>
+      <div id="recentSearches" class="rows"></div>
+    </section>
+
+    <section class="tab" id="tab-ban" hidden>
+      <p class="muted">Modelli che non compaiono mai, né nelle ricerche né nella home. Vale per tutti. Le auto elettriche sono escluse sempre, e anche gli annunci con km chiaramente falsi (0, 300, 999 km su auto vecchie).</p>
       <div id="bans" class="chips"></div>
       <div class="banadd">
         <select id="banMake" aria-label="Marca"><option value="">Marca…</option></select>

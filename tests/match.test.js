@@ -64,3 +64,48 @@ test('raggio da casa: fuori raggio escluso, città sconosciuta tenuta, raggio pi
   assert.ok(!matches(it('Fiat Panda', '', { dist: 300 }), s, 'subito'));
   assert.ok(matches(it('Fiat Panda', '', { dist: null }), s, 'subito'));
 });
+
+test('km falsi: 0, 300, 999 su auto vecchie e numeri tipo 111.111 esclusi', () => {
+  const y = new Date().getFullYear();
+  assert.ok(M.isFakeKm({ km: 0, year: 2005 }));
+  assert.ok(M.isFakeKm({ km: 300, year: 2010 }));
+  assert.ok(M.isFakeKm({ km: 999, year: y - 3 }));
+  assert.ok(M.isFakeKm({ km: 111111, year: 2005 }));
+  assert.ok(M.isFakeKm({ km: 123456, year: 2009 }));
+  assert.ok(!M.isFakeKm({ km: 0, year: y }), 'auto nuova o km0 vera');
+  assert.ok(!M.isFakeKm({ km: 1500, year: 2010 }));
+  assert.ok(!M.isFakeKm({ km: null, year: 2005 }), 'km non scritti: resta');
+  assert.ok(!matches(it('Fiat Panda', '', { km: 0, year: 2006 }), cleanSearch({}), 'subito'));
+});
+
+test('avvisi dalla descrizione (italiano, tedesco, olandese) e negazioni', () => {
+  const t = (s) => M.flags(s).map((f) => (f.bad ? '-' : '+') + f.t);
+  assert.deepStrictEqual(t('Motore rifatto a 200.000 km, distribuzione fatta, frizione nuova'), ['+Motore rifatto', '+Distribuzione fatta', '+Frizione nuova']);
+  assert.deepStrictEqual(t('Motore da rifare, solo per ricambi'), ['-Motore da rifare', '-Per ricambi']);
+  assert.deepStrictEqual(t('Mai incidentata, unico proprietario'), ['+Un solo proprietario']);
+  assert.deepStrictEqual(t('Motorschaden, nicht fahrbereit'), ['-Motore da rifare', '-Non marciante']);
+  assert.deepStrictEqual(t('Motor überholt, Zahnriemen neu, Scheckheft'), ['+Motore rifatto', '+Distribuzione fatta', '+Tagliandi documentati']);
+  assert.deepStrictEqual(t('motor gereviseerd, eerste eigenaar'), ['+Motore rifatto', '+Un solo proprietario']);
+  assert.deepStrictEqual(t('Auto incidentata sul lato destro'), ['-Incidentata']);
+});
+
+test('carrozzeria scritta dai siti', () => {
+  assert.deepStrictEqual(['Station Wagon', 'Cabrio', 'SUV/Fuoristrada', 'Coupé', 'City Car', 'Berlina', 'Kombi', 'Stationwagon'].map(M.normBody),
+    ['sw', 'cabrio', 'suv', 'coupe', 'citycar', 'berlina', 'sw', 'sw']);
+  const s = cleanSearch({ body: 'cabrio' });
+  assert.ok(!matches(it('Fiat Punto', '', { body: 'Berlina' }), s, 'subito'));
+  assert.ok(matches(it('Fiat Punto', '', { body: 'Cabrio' }), s, 'subito'));
+  assert.ok(matches(it('Fiat Punto'), s, 'subito'), 'carrozzeria non scritta: resta');
+});
+
+test('feed: lista appassionati ampia, nomi come su AutoScout24, tipo per ognuna', () => {
+  const { RARE, POPULAR } = require('../server/feed-list');
+  const MODELS = require('../public/js/models.js');
+  assert.ok(RARE.length >= 140 && POPULAR.length >= 80);
+  const names = (mk) => { const m = MODELS.makes.find((x) => x.n === mk); return m ? (m.g || []).concat((m.m || []).map((x) => x[0])) : null; };
+  RARE.forEach((r) => {
+    assert.ok(names(r.make) && names(r.make).includes(r.model), r.make + ' ' + r.model);
+    assert.ok(['citycar', 'berlina', 'sw', 'coupe', 'cabrio', 'suv'].includes(r.b), r.make + ' ' + r.model + ' tipo');
+  });
+  POPULAR.forEach(([mk, md]) => assert.ok(names(mk) && names(mk).includes(md), mk + ' ' + md));
+});

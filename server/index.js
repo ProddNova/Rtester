@@ -265,7 +265,7 @@ async function api(req, res, url) {
   if (p === '/api/feed') {
     if (!allowed('feed', ip, 60)) return json(req, res, 429, { error: 'Troppe richieste, aspetta un paio di minuti' });
     const q = url.searchParams;
-    return json(req, res, 200, await feed(q.get('page'), { mode: q.get('mode'), seed: q.get('seed'), pmax: q.get('pmax'), kmmax: q.get('kmmax'), area: q.get('area'), bans: await currentBans() }));
+    return json(req, res, 200, await feed(q.get('page'), { mode: q.get('mode'), seed: q.get('seed'), pmax: q.get('pmax'), kmmax: q.get('kmmax'), area: q.get('area'), body: q.get('body'), bans: await currentBans() }));
   }
   if (p === '/api/ad') {
     if (!allowed('ad', ip, 150)) return json(req, res, 429, { error: 'Troppe richieste, aspetta un attimo' });

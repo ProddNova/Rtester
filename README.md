@@ -7,18 +7,25 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
 
 ## Cosa fa
 
-- **Home da scorrere**: senza mettere filtri trovi un feed infinito, in due modalità:
-  - **Consigliati**: auto da appassionati (Evo, MX-5, Delta Integrale, Saab Aero…, con una curiosità
-    su ognuna) e modelli diffusi con prezzo sotto il mercato secondo AutoScout24. Ordine casuale a ogni apertura
-    (pulsante "Mescola"), mai due annunci di fila dello stesso modello;
-  - **Più recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit (e Kleinanzeigen, Marktplaats).
+- **Home**: in alto "Cerca un'auto" (con **Azzera filtri** sempre a portata, senza aprire il pannello), sotto **Da scoprire**,
+  un feed infinito in tre modalità:
+  - **Appassionati**: 140+ auto da appassionati (Delta Integrale, MX-5, E30, Saab Aero, Pajero, Elise, Supra…) con una
+    curiosità su ognuna, negli anni giusti. Ordine casuale (pulsante "mescola"), mai due di fila dello stesso modello;
+  - **Offerte**: 90+ modelli diffusi con prezzo sotto il mercato secondo AutoScout24;
+  - **Recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit (e Kleinanzeigen, Marktplaats).
 
-  Filtri solo per il feed: **budget massimo**, **km massimi** e **dove** (Italia + estero oppure solo Italia).
-  Nel feed vanno solo annunci con foto.
+  Quattro filtri per il feed, in due righe: **prezzo**, **km**, **tipo** (city car, berlina, station wagon, coupé, cabrio,
+  SUV) e **dove** (Italia + estero o solo Italia). Nel feed vanno solo annunci con foto.
+- **Km falsi esclusi**: meno di 1.000 km su un'auto di almeno 2 anni (o senza anno), oppure numeri tipo 111.111 o 123.456.
+- **Avvisi dalla descrizione**, in verde o in rosso, sulle card e in un riquadro "Dalla descrizione" nella scheda:
+  motore rifatto, distribuzione fatta, frizione nuova, tagliandi documentati, un solo proprietario, storica/ASI;
+  motore da rifare, cambio da rifare, non marciante, per ricambi, da sistemare, incidentata, grandinata, revisione scaduta,
+  km non garantiti. Capisce italiano, tedesco, olandese e inglese, e le negazioni ("mai incidentata" non è un problema).
 - **Ricerca rapida**: marca e modello si scrivono con la tastiera e la lista si filtra mentre scrivi
   ("mercedes" → Mercedes-Benz, "classe c" → Classe C); poi prezzo massimo e anno minimo; tutto il resto è in "Altri filtri"
   (versione/parole chiave, prezzo da, anno fino a, km, alimentazione, cambio, carrozzeria, privati/concessionari,
-  potenza, regione, **dove cercare**: Italia + estero, solo Italia, solo estero). Più scorciatoie al volo: "Sotto 5.000 €", "Youngtimer", "Cabrio", "200+ CV"…
+  potenza, regione, **dove cercare**: Italia + estero, solo Italia, solo estero). In cima al pannello i **filtri veloci**:
+  "Sotto 5.000 €", "Youngtimer", "Cabrio", "200+ CV", "Vicino a Genova"…
 - **Tutte le marche e i modelli**: 301 marche e oltre 5.000 modelli, presi da AutoScout24
   (`node scripts/update-models.js` per aggiornarli).
 - **Lista unica** da 7 siti, con scorrimento infinito. Gli annunci compaiono appena risponde il primo sito
@@ -55,7 +62,8 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
   con le etichette dei siti (es. `AS24 +Subito +Trovit`) e i link agli altri annunci.
 - **Salvati condivisi** (senza avvisi a schermo): ☆ su un annuncio e lo vedono **tutti** quelli che usano l'app. Note, storico del prezzo
   ("▼ 500 €"), annunci spariti segnalati, pulsante "Controlla prezzi". Si possono incollare anche link di altri siti.
-- **Ricerche salvate condivise** e ultime ricerche.
+- **I tuoi** (stella in alto): tre schede, **Auto** salvate, **Ricerche** (salvate per tutti e ultime fatte sul telefono)
+  e **Ban list**.
 - **Nascondi** gli annunci che non ti interessano.
 - **App installabile** (PWA); su Android puoi condividere un annuncio da un'altra app verso AutoHunter.
 

@@ -131,12 +131,13 @@
       go('#/risultati');
     });
     $('btnReset').addEventListener('click', function () { writeForm(EMPTY); updateMoreCount(); });
+    $('btnClear').addEventListener('click', clearFilters);
     $('btnMore').addEventListener('click', function () { $('adv').hidden = false; });
     $('btnAdvClose').addEventListener('click', function () { $('adv').hidden = true; updateMoreCount(); });
     $('adv').addEventListener('click', function (e) { if (e.target === $('adv')) { $('adv').hidden = true; updateMoreCount(); } });
     f.addEventListener('change', updateMoreCount);
     QUICK.forEach(function (q) {
-      $('quickChips').appendChild(h('button', { class: 'chip plain quickc', type: 'button', on: { click: function () { applySearch(q.s); } } }, it2(q.i, q.n)));
+      $('quickChips').appendChild(h('button', { class: 'chip plain quickc', type: 'button', on: { click: function () { $('adv').hidden = true; applySearch(q.s); } } }, it2(q.i, q.n)));
     });
   }
 
@@ -147,6 +148,14 @@
     if (f.elements.area.value && f.elements.area.value !== 'eu') n++;
     $('moreCount').hidden = !n;
     $('moreCount').textContent = n;
+    // "Azzera filtri" in alto nel riquadro, solo se c'è qualcosa da azzerare
+    var any = n || ['make', 'model', 'pmax', 'ymin'].some(function (k) { return String(f.elements[k].value || '').trim(); });
+    $('btnClear').hidden = !any;
+  }
+  function clearFilters() {
+    state.search = Object.assign({}, EMPTY, { sort: state.search.sort || 'rilevanza', sort2: state.search.sort2 || '' });
+    lset('search', state.search);
+    writeForm(state.search);
   }
 
   // Ricerche al volo, senza mettere filtri a mano
@@ -341,22 +350,28 @@
     lset('recent', state.recent);
   }
 
+  // Ricerche salvate (condivise) e ultime fatte: nella pagina "I tuoi", scheda Ricerche
+  function searchRow(icon, label, run, remove) {
+    return h('div', { class: 'srow' }, [
+      h('button', { class: 'srow-main', type: 'button', on: { click: run } }, it2(icon, label)),
+      h('button', { class: 'x', type: 'button', 'aria-label': 'Elimina', on: { click: remove } }, [ic('x')])
+    ]);
+  }
   function renderSearchLists() {
     var box = $('recentSearches');
     box.innerHTML = '';
-    $('blockMine').hidden = !state.recent.length && !state.searches.length;
-    state.recent.slice(0, 5).forEach(function (r) {
-      box.appendChild(h('button', { class: 'chip plain', type: 'button', on: { click: function () { applySearch(r.s); } } }, it2('history', r.label)));
+    if (!state.recent.length) box.appendChild(h('p', { class: 'muted small', text: 'Ancora nessuna ricerca.' }));
+    state.recent.forEach(function (r, i) {
+      box.appendChild(searchRow('history', r.label, function () { applySearch(r.s); }, function () {
+        state.recent.splice(i, 1); lset('recent', state.recent); renderSearchLists();
+      }));
     });
     var sb = $('savedSearches');
     sb.innerHTML = '';
+    if (!state.searches.length) sb.appendChild(h('p', { class: 'muted small', text: 'Nei risultati tocca il segnalibro in alto per salvare una ricerca.' }));
     state.searches.forEach(function (x) {
-      sb.appendChild(h('span', { class: 'chip' }, [
-        h('span', { style: 'cursor:pointer', on: { click: function () { applySearch(x.search); } } }, it2('bookmark', x.name)),
-        h('button', { class: 'x', type: 'button', 'aria-label': 'Elimina', on: { click: function () { removeSearch(x); } } }, [ic('x')])
-      ]));
+      sb.appendChild(searchRow('bookmark', x.name, function () { applySearch(x.search); }, function () { removeSearch(x); }));
     });
-
   }
 
   function applySearch(s) {
@@ -635,6 +650,16 @@
     ]));
   }
 
+  // Avvisi presi dal testo dell'annuncio ("Motore rifatto", "Motore da rifare", "Incidentata"...)
+  function adFlags(it, text) { return M.flags([it.title, it.version, text || it.snippet || ''].join(' \n ')); }
+  function flagNode(f) { return h('span', { class: 'flag ' + (f.bad ? 'bad' : 'good') }, it2(f.bad ? 'triangle-alert' : 'check', f.t)); }
+  function flagRow(it, max) {
+    var list = adFlags(it);
+    if (!list.length) return null;
+    list.sort(function (a, b) { return (b.bad ? 1 : 0) - (a.bad ? 1 : 0); });
+    return h('div', { class: 'flags' }, list.slice(0, max).map(flagNode));
+  }
+
   // Titolo pulito: "Saab 9 - 3" -> "Saab 9-3"; versione senza il modello ripetuto ("9-3 Cabriolet" -> "Cabriolet")
   function cleanTitle(t) { return String(t || '').replace(/(\d)\s+-\s+(\d)/g, '$1-$2').replace(/\s{2,}/g, ' ').trim(); }
   function cleanVersion(it) {
@@ -680,7 +705,6 @@
     var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
-    if (it.note) tags.push(h('span', { class: 'tag warn', text: it.note }));
     if (it.postedLabel) tags.push(h('span', { text: it.postedLabel }));
     if (typeof it.dist === 'number') tags.push(h('span', { class: 'dist', text: distLabel(it) }));
     if (it.city) tags.push(h('span', { class: 'city', text: it.city }));
@@ -695,6 +719,7 @@
         h('div', { class: 'tt' }, titleNodes(it)),
         h('div', { class: 'prow' }, [h('span', { class: 'pr', text: eur(it.price) }), dealBadge(it)]),
         meta ? h('div', { class: 'mt', text: meta }) : null,
+        flagRow(it, 2),
         h('div', { class: 'ft' }, tags)
       ]),
       starBtn(it)
@@ -932,6 +957,15 @@
       spec('Peso', ad && ad.weight),
       spec('Città', !ad ? base.city : '')
     ].filter(Boolean));
+    // cosa dice la descrizione, ben in vista prima della scheda tecnica
+    var fl = adFlags(a, ad && ad.description);
+    if (fl.length) {
+      fl.sort(function (x, y) { return (y.bad ? 1 : 0) - (x.bad ? 1 : 0); });
+      wrap.appendChild(h('div', { class: 'flagbox' + (fl.some(function (f) { return f.bad; }) ? ' has-bad' : '') }, [
+        h('div', { class: 'flagbox-title', text: 'Dalla descrizione' }),
+        h('div', { class: 'flags' }, fl.map(flagNode))
+      ]));
+    }
     if (specs.children.length) wrap.appendChild(specs);
 
     if (ad && ad.seller && (ad.seller.name || ad.seller.city)) {
@@ -1001,7 +1035,7 @@
 
   // ---------------------------------------------------------------- ban list (condivisa)
   // Modelli che non vogliamo vedere mai (marca + modello precisi). Le elettriche sono escluse sempre.
-  function blocked(it) { return M.isElectric(it) || M.banned(it, state.bans); }
+  function blocked(it) { return M.isElectric(it) || M.isFakeKm(it) || M.banned(it, state.bans); }
   function loadBans() {
     state.bans = state.mirror.bans.items;
     return api('api/bans').then(function (j) { sync('bans', j); }).catch(function () { /* server giù: resta la copia */ });
@@ -1065,7 +1099,8 @@
 
   // ---------------------------------------------------------------- feed della home
   // opzioni del feed (ricordate sul telefono) e ordine casuale nuovo a ogni apertura
-  var feedOpts = Object.assign({ mode: 'mix', pmax: '', kmmax: '', area: 'eu' }, lget('feed', {}));
+  var feedOpts = Object.assign({ mode: 'rare', pmax: '', kmmax: '', body: '', area: 'eu' }, lget('feed', {}));
+  if (['rare', 'offerte', 'recenti'].indexOf(feedOpts.mode) === -1) feedOpts.mode = 'rare'; // il vecchio mix
   var feedSeed = 1 + Math.floor(Math.random() * 1e6);
   var feed = { items: [], page: 0, loading: false, done: false, req: 0 };
   function loadFeed(reset) {
@@ -1081,7 +1116,7 @@
     more.innerHTML = '';
     for (var i = 0; i < (feed.page ? 1 : 4); i++) (feed.page ? more : $('feed')).appendChild(h('div', { class: 'skel tall' }));
     var q = 'api/feed?page=' + feed.page + '&mode=' + feedOpts.mode + '&seed=' + feedSeed +
-      (feedOpts.pmax ? '&pmax=' + feedOpts.pmax : '') + (feedOpts.kmmax ? '&kmmax=' + feedOpts.kmmax : '') + '&area=' + (feedOpts.area || 'eu');
+      (feedOpts.pmax ? '&pmax=' + feedOpts.pmax : '') + (feedOpts.kmmax ? '&kmmax=' + feedOpts.kmmax : '') + '&area=' + (feedOpts.area || 'eu') + (feedOpts.body ? '&body=' + feedOpts.body : '');
     api(q).then(function (j) {
       if (myReq !== feed.req) return; // nel frattempo hai cambiato filtri
       feed.loading = false;
@@ -1123,6 +1158,7 @@
         h('div', { class: 'tt' }, titleNodes(it)),
         h('div', { class: 'prow' }, [h('span', { class: 'fprice', text: eur(it.price) }), dealBadge(it)]),
         meta ? h('div', { class: 'mt', text: meta }) : null,
+        flagRow(it, 2),
         it.fact ? h('div', { class: 'fact' }, it2('sparkles', it.fact)) : null,
         h('div', { class: 'ft' }, tags)
       ]),
@@ -1136,9 +1172,11 @@
     $('feedPmax').value = feedOpts.pmax || '';
     $('feedKm').value = feedOpts.kmmax || '';
     $('feedArea').value = feedOpts.area === 'it' ? 'it' : 'eu';
+    fillSelect($('feedBody'), D.BODIES);
+    $('feedBody').value = feedOpts.body || '';
     var markMode = function () {
       Array.prototype.forEach.call($('feedMode').children, function (b) { b.classList.toggle('on', b.getAttribute('data-mode') === feedOpts.mode); });
-      $('btnFeedRefresh').hidden = feedOpts.mode !== 'mix';
+      $('btnFeedRefresh').hidden = feedOpts.mode === 'recenti';
     };
     markMode();
     Array.prototype.forEach.call($('feedMode').children, function (b) {
@@ -1148,9 +1186,17 @@
         lset('feed', feedOpts); markMode(); loadFeed(true);
       });
     });
-    [['feedPmax', 'pmax'], ['feedKm', 'kmmax'], ['feedArea', 'area']].forEach(function (p) {
+    [['feedPmax', 'pmax'], ['feedKm', 'kmmax'], ['feedBody', 'body'], ['feedArea', 'area']].forEach(function (p) {
       $(p[0]).addEventListener('change', function () { feedOpts[p[1]] = $(p[0]).value; lset('feed', feedOpts); loadFeed(true); });
     });
+  }
+
+  // ---------------------------------------------------------------- pagina "I tuoi": Auto, Ricerche, Ban list
+  function showTab(t) {
+    if (['auto', 'ricerche', 'ban'].indexOf(t) === -1) t = 'auto';
+    state.tab = t;
+    Array.prototype.forEach.call($('savedTabs').children, function (b) { b.classList.toggle('on', b.getAttribute('data-tab') === t); });
+    ['auto', 'ricerche', 'ban'].forEach(function (k) { $('tab-' + k).hidden = k !== t; });
   }
 
   // ---------------------------------------------------------------- salvati (condivisi)
@@ -1385,7 +1431,10 @@
     }
     if (path === '/salvati') {
       show('saved');
+      showTab(params.get('tab') || state.tab || 'auto');
       renderSaved();
+      renderSearchLists();
+      renderBans();
       loadSaved();
       window.scrollTo(0, 0);
       return;
@@ -1437,6 +1486,9 @@
     $('addUrl').addEventListener('keydown', function (e) { if (e.key === 'Enter') addByLink(); });
     $('savedSort').addEventListener('change', renderSaved);
     $('btnCheck').addEventListener('click', checkPrices);
+    Array.prototype.forEach.call($('savedTabs').children, function (b) {
+      b.addEventListener('click', function () { showTab(b.getAttribute('data-tab')); if (state.tab === 'ricerche') loadSearches(); });
+    });
     $('dlg').addEventListener('click', function (e) { if (e.target === $('dlg')) $('dlg').close(); });
     window.addEventListener('hashchange', function () { depth++; route(); });
     watchBottom();

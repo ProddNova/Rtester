@@ -47,6 +47,7 @@ const TEXT_SEARCH = new Set(['kleinanzeigen', 'marktplaats']);
 
 function matches(it, s, siteId, bans) {
   if (MATCH.isElectric(it)) return false;
+  if (MATCH.isFakeKm(it)) return false; // 0, 300, 999 km su un'auto vecchia, 111.111...
   if (bans && MATCH.banned(it, bans)) return false;
   const pmin = n(s.pmin), pmax = n(s.pmax), ymin = n(s.ymin), ymax = n(s.ymax), kmmin = n(s.kmmin), kmmax = n(s.kmmax), cvmin = n(s.cvmin), cvmax = n(s.cvmax);
   if (pmin && it.price < pmin) return false;
@@ -60,6 +61,8 @@ function matches(it, s, siteId, bans) {
   if (it.cv && cvmax && it.cv > cvmax) return false;
   if (s.fuel && it.fuel && it.fuel !== s.fuel) return false;
   if (s.gear && it.gear && it.gear !== s.gear) return false;
+  // carrozzeria: se il sito la scrive ma non sa filtrarla (es. Subito), la controlliamo noi
+  if (s.body && it.body && MATCH.normBody(it.body) && MATCH.normBody(it.body) !== s.body) return false;
   // distanza da casa (se non si sa da dove, l'annuncio resta)
   if (n(s.radius) && it.dist !== null && it.dist !== undefined && it.dist > n(s.radius)) return false;
   const text = norm(it.title + ' ' + it.version);
