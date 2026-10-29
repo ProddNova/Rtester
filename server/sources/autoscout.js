@@ -40,6 +40,8 @@ function parse(html) {
       seller: l.seller && l.seller.type === 'PrivateSeller' ? 'privato' : 'concessionario',
       image: img.replace(/\/\d+x\d+\.webp$/, '/480x360.webp'),
       photos: (l.images || []).length,
+      // prime foto per scorrerle nella card senza aprire l'annuncio
+      pics: (l.images || []).slice(0, 8).filter((u) => /^https:\/\//.test(u)).map((u) => u.replace(/\/\d+x\d+\.webp$/, '/480x360.webp')),
       deal: LABEL_CAT[String(tr.priceLabel || '').trim()]
     };
   }).filter((x) => x.price);

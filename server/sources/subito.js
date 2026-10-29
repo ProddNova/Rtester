@@ -64,6 +64,7 @@ function normalize(x) {
     image: img(images[0], 'large-fixed-card-2x-auto'),
     images,
     photos: images.length,
+    pics: images.slice(0, 8).map((u) => img(u, 'large-fixed-card-2x-auto')),
     description: String(x.body || '').trim(),
     snippet: String(x.body || '').trim().slice(0, 200),
     posted: Date.parse(String(x.date || '').replace(' ', 'T')) || null

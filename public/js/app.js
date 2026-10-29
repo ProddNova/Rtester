@@ -454,7 +454,8 @@
           results.sources = results.sources.map(function (x) { return x.id === id ? src : x; });
           if (data.links && data.links.length) results.links = data.links;
           var now = Date.now();
-          data.items.forEach(function (x) {
+          data.items.forEach(function (x, i) {
+            x._r = (page - 1) * 1000 + i; // posizione nel suo sito: in "Misti" i siti si alternano
             x.key = keyOf(x);
             x.isNew = hadSeen && !state.seen[x.key];
             if (!state.seen[x.key]) state.seen[x.key] = now;
@@ -570,6 +571,8 @@
     var s1 = state.search.sort, s2 = state.search.sort2;
     var list = items.map(function (x, i) { x._i = i; return x; });
     var c1 = comparator(s1, !!comparator(s2)), c2 = s2 && s2 !== s1 ? comparator(s2, false) : null;
+    // "Misti": il 1° di ogni sito, poi il 2° di ogni sito... (non tutti quelli del sito più veloce in cima)
+    if (!c1) list.sort(function (a, b) { return ((a._r || 0) - (b._r || 0)) || a._i - b._i; });
     if (c1 || c2) {
       list.sort(function (a, b) {
         var r = c1 ? c1(a, b) : 0;
@@ -605,7 +608,11 @@
     } else if (!visible.length) {
       box.appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Niente con questi filtri' }), 'Allarga budget, anni o km. Oppure prova sui siti qui sopra.']));
     }
-    sorted(visible).forEach(function (it) { box.appendChild(adCard(it)); });
+    var list = sorted(visible);
+    list.forEach(function (it, i) {
+      box.appendChild(adCard(it));
+      if (i === Math.min(7, list.length - 1) && !results.loading) { var mp = marketplaceCard(); if (mp) box.appendChild(mp); }
+    });
     var more = $('more');
     more.innerHTML = '';
     if (results.loading && visible.length) more.appendChild(h('div', { class: 'skel' }));
@@ -631,6 +638,20 @@
         return h('span', null, [h('a', { href: l.url, target: '_blank', rel: 'noopener', text: l.name }, [ic('external-link')]), i < results.links.length - 1 ? ' · ' : '']);
       }))));
     }
+  }
+
+  // Facebook Marketplace: Facebook vieta i programmi che leggono i suoi annunci (e serve il login),
+  // quindi niente annunci dentro l'app: un riquadro che apre Marketplace con la stessa ricerca già impostata.
+  function marketplaceCard() {
+    var fb = S.plan(state.search).filter(function (p) { return p.site.id === 'facebook'; })[0];
+    if (!fb) return null;
+    return h('a', { class: 'mpcard', href: fb.url, target: '_blank', rel: 'noopener' }, [
+      h('div', { class: 'mp-ic' }, [ic('external-link')]),
+      h('div', { class: 'mp-bd' }, [
+        h('b', { text: 'Cerca anche su Facebook Marketplace' }),
+        h('span', { text: 'Tanti privati. Si apre con la stessa ricerca già impostata, intorno a Genova' + (int(state.search.radius) ? ' (entro ' + state.search.radius + ' km)' : '') + '.' })
+      ])
+    ]);
   }
 
   function renderOffline(msg) {
@@ -711,9 +732,8 @@
     var href = '#/annuncio?u=' + encodeURIComponent(it.url);
     return h('a', { class: 'ad' + (state.visited[it.key] ? ' visited' : ''), href: href }, [
       h('div', { class: 'ph' }, [
-        it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.replaceWith(ic('car', 'noimg')); } } }) : ic('car', 'noimg'),
-        it.isNew ? h('span', { class: 'new', text: 'NUOVO' }) : null,
-        it.photos > 1 ? h('span', { class: 'n' }, [ic('camera'), String(it.photos)]) : null
+        photoStrip(it),
+        it.isNew ? h('span', { class: 'new', text: 'NUOVO' }) : null
       ]),
       h('div', { class: 'bd' }, [
         h('div', { class: 'tt' }, titleNodes(it)),
@@ -724,6 +744,46 @@
       ]),
       starBtn(it)
     ]);
+  }
+
+  // Foto da scorrere col dito direttamente nella card (senza aprire l'annuncio).
+  // Le prime arrivano con la ricerca; quando arrivi all'ultima, le altre si scaricano dalla pagina dell'annuncio.
+  function photoStrip(it) {
+    var known = (it.pics && it.pics.length ? it.pics : (it.image ? [it.image] : [])).slice(0, 8);
+    if (!known.length) return ic('car', 'noimg');
+    var total = Math.max(it.photos || 0, known.length);
+    var strip = h('div', { class: 'strip' });
+    var photo = function (u) {
+      return h('img', { src: u, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', draggable: 'false',
+        on: { error: function () { this.replaceWith(h('div', { class: 'slot' }, [ic('car', 'noimg')])); } } });
+    };
+    known.forEach(function (u) { strip.appendChild(photo(u)); });
+    // segnaposto per poter già scorrere verso le foto non ancora scaricate
+    var slots = Math.min(total, 12) - known.length;
+    for (var i = 0; i < slots; i++) strip.appendChild(h('div', { class: 'slot' }, [ic('loader')]));
+    var wrap = h('div', { class: 'strip-wrap' }, [strip]);
+    if (total < 2) return wrap;
+    var counter = h('span', { class: 'n' }, [ic('camera'), h('b', { text: '1/' + total })]);
+    wrap.appendChild(counter);
+    var fetched = known.length >= total, fetching = false;
+    strip.addEventListener('scroll', function () {
+      var i = Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth));
+      counter.lastChild.textContent = (i + 1) + '/' + total;
+      if (fetched || fetching || i < known.length - 1) return;
+      fetching = true;
+      api('api/ad?url=' + encodeURIComponent(it.url)).then(function (j) {
+        var all = ((j && j.ad && j.ad.photos) || []).slice(0, 20);
+        Array.prototype.slice.call(strip.querySelectorAll('.slot')).forEach(function (x) { x.remove(); });
+        all.slice(known.length).forEach(function (u) { strip.appendChild(photo(u)); });
+        total = strip.children.length;
+        counter.lastChild.textContent = (Math.round(strip.scrollLeft / Math.max(1, strip.clientWidth)) + 1) + '/' + total;
+        fetched = true;
+      }).catch(function () {
+        Array.prototype.slice.call(strip.querySelectorAll('.slot')).forEach(function (x) { x.remove(); });
+        fetched = true;
+      });
+    }, { passive: true });
+    return wrap;
   }
 
   // infinito: quando arrivi in fondo carica la pagina dopo
@@ -1151,7 +1211,7 @@
       : it2('gem', it.label || 'Da appassionati');
     return h('a', { class: 'fcard', href: '#/annuncio?u=' + encodeURIComponent(it.url) }, [
       h('div', { class: 'ph' }, [
-        it.image ? h('img', { src: it.image, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer', decoding: 'async', on: { error: function () { this.replaceWith(ic('car', 'noimg')); } } }) : ic('car', 'noimg'),
+        photoStrip(it),
         h('span', { class: 'why ' + (it.reason || '') }, why)
       ]),
       h('div', { class: 'bd' }, [

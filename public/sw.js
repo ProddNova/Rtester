@@ -1,5 +1,5 @@
 /* Service worker: fa funzionare l'app anche offline (i siti di annunci ovviamente no). */
-var CACHE = 'autohunter-v12';
+var CACHE = 'autohunter-v13';
 var FILES = [
   './', 'index.html', 'css/style.css',
   'js/icons.js', 'js/data.js', 'js/models.js', 'js/lang.js', 'js/sites.js', 'js/dedup.js', 'js/match.js', 'js/app.js',

@@ -92,6 +92,7 @@ function parse(html) {
       seller: '',
       image: img(pic),
       photos: (l.imageUrls || []).length,
+      pics: (l.imageUrls || []).slice(0, 8).map((u) => img(u).replace(/\$_82\.jpg$/, '$_83.jpg')).filter(Boolean),
       snippet: decode(l.description || '').slice(0, 220),
       posted: when(l.date),
       postedLabel: l.date || ''

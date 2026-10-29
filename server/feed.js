@@ -16,6 +16,22 @@ const MP = require('./sources/marktplaats');
 
 const { RARE, POPULAR } = require('./feed-list');
 
+// Divide la lista (già mescolata) in pagine da n modelli, senza ripetere la marca nella stessa pagina.
+function pages(list, n) {
+  const out = [];
+  let rest = list.slice();
+  while (rest.length) {
+    const page = [], used = new Set(), later = [];
+    rest.forEach((x) => {
+      const mk = String(x.make || x[0]).toLowerCase();
+      if (page.length < n && !used.has(mk)) { page.push(x); used.add(mk); } else later.push(x);
+    });
+    out.push(page);
+    rest = later;
+  }
+  return out;
+}
+
 function pick(list, start, n) { const out = []; for (let i = 0; i < n; i++) out.push(list[(start + i) % list.length]); return out; }
 
 // Generatore casuale con seme (stesso seme = stesso ordine: le pagine successive non si ripetono)
@@ -39,7 +55,8 @@ function sample(list, n, rand) { return shuffle(list, rand).slice(0, n); }
 // Mescola evitando due annunci di fila dello stesso modello
 function spread(items, rand) {
   const groups = {};
-  shuffle(items, rand).forEach((it) => { const g = (it.title || '').toLowerCase(); (groups[g] = groups[g] || []).push(it); });
+  // raggruppa per marca (i titoli sono quasi sempre diversi: "Saab 9-3 Aero", "SAAB 9.3 cabrio"...)
+  shuffle(items, rand).forEach((it) => { const g = String(it._g || it.title || '').toLowerCase().split(/[\s-]/)[0]; (groups[g] = groups[g] || []).push(it); });
   const out = [];
   let last = null;
   while (Object.keys(groups).length) {
@@ -145,21 +162,23 @@ async function feed(page, opts) {
     // ordine casuale ma fisso per questo seme: pagina dopo pagina si scorrono modelli sempre diversi
     const popOrder = shuffle(POPULAR.filter(([make, model, b]) => ok(make, model) && (!body || b === body)), rng(seed + 1));
     if (!popOrder.length) return done([], false);
-    pick(popOrder, page * 6, Math.min(6, popOrder.length)).forEach(([make, model]) => {
+    const popPages = pages(popOrder, 9);
+    popPages[page % popPages.length].forEach(([make, model]) => {
       const s = { make, model, ymin: '2008', pmax: String(o.pmax || 30000), kmmax: o.kmmax ? String(o.kmmax) : '', body, sort: 'rilevanza' };
       // affari secondo la valutazione di AutoScout24 (1 = ottimo, 2 = buon prezzo)
-      jobs.push(fromAS(Object.assign({ europe: abroad }, s)).then((items) => sample(items.filter((it) => (it.deal === 1 || it.deal === 2) && within(it, o)), 3, rand)
-        .map((it) => Object.assign(it, { reason: 'affare', label: it.deal === 1 ? 'Affare' : 'Buon prezzo' }))));
+      jobs.push(fromAS(Object.assign({ europe: abroad }, s)).then((items) => sample(items.filter((it) => (it.deal === 1 || it.deal === 2) && within(it, o)), 2, rand)
+        .map((it) => Object.assign(it, { reason: 'affare', label: it.deal === 1 ? 'Affare' : 'Buon prezzo', _g: make }))));
     });
     const all = [].concat(...(await Promise.all(jobs)));
-    return done(spread(DEDUP.mergeListings([], all), rand), page < Math.ceil(popOrder.length / 6) * 2);
+    return done(spread(DEDUP.mergeListings([], all), rand), page < popPages.length * 2);
   }
 
   // Da appassionati
   const list = RARE.filter((r) => ok(r.make, r.model) && (!body || r.b === body));
   const rareOrder = shuffle(list, rng(seed));
   if (!list.length) return done([], false);
-  pick(rareOrder, page * 5, Math.min(5, list.length)).forEach((r) => {
+  const rarePages = pages(rareOrder, 8);
+  rarePages[page % rarePages.length].forEach((r) => {
     const pmax = o.pmax ? Math.min(o.pmax, r.p) : r.p;
     const s = { make: r.make, model: r.model, kw: r.kw || '', ymin: String(r.y[0]), ymax: String(r.y[1]), pmax: String(pmax), kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'rilevanza' };
     const tag = { reason: 'rara', label: 'Da appassionati', fact: r.f };
@@ -170,12 +189,14 @@ async function feed(page, opts) {
       // Kleinanzeigen/Marktplaats cercano a parole: il modello deve comparire nel titolo
       const okF = (it) => okIt(it) && kwOk(it, /^(Serie|Classe) /.test(r.model) ? '' : r.model) &&
         it.price <= pmax && (!it.year || (it.year >= r.y[0] && it.year <= r.y[1]));
-      return sample(a.filter(okIt), 3, rand).concat(sample(b.filter(okIt), 2, rand), sample(c.filter(okF), 2, rand))
-        .map((it) => Object.assign(it, tag));
+      // al massimo 2 annunci per modello, da siti diversi quando si può: più varietà
+      const one = [sample(a.filter(okIt), 1, rand), sample(b.filter(okIt), 1, rand), sample(c.filter(okF), 1, rand)];
+      const picked = sample([].concat(...one), 2, rand);
+      return picked.map((it) => Object.assign(it, tag, { _g: r.make }));
     }));
   });
   const all = [].concat(...(await Promise.all(jobs)));
-  return done(spread(DEDUP.mergeListings([], all), rand), page < Math.ceil(list.length / 5) * 2);
+  return done(spread(DEDUP.mergeListings([], all), rand), page < rarePages.length * 2);
 }
 
-module.exports = { feed, RARE, POPULAR, spread, rng };
+module.exports = { feed, RARE, POPULAR, spread, rng, pages };

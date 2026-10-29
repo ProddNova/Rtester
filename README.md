@@ -14,8 +14,16 @@ Un "AutoScout per appassionati": cerchi una volta e vedi in **un'unica lista** g
   - **Offerte**: 90+ modelli diffusi con prezzo sotto il mercato secondo AutoScout24;
   - **Recenti**: gli ultimi annunci pubblicati su AutoScout24, Subito e Trovit (e Kleinanzeigen, Marktplaats).
 
+  Ogni pagina mescola 8-9 modelli di **marche tutte diverse**, al massimo 2 annunci per modello, mai due della stessa marca di fila.
+
   Quattro filtri per il feed, in due righe: **prezzo**, **km**, **tipo** (city car, berlina, station wagon, coupé, cabrio,
   SUV) e **dove** (Italia + estero o solo Italia). Nel feed vanno solo annunci con foto.
+- **Foto da scorrere nella card**: col dito si sfogliano le foto direttamente nel feed e nei risultati, senza aprire
+  l'annuncio (contatore "3/14"). Le prime arrivano con la ricerca; arrivato all'ultima, le altre si scaricano da sole.
+- **Facebook Marketplace**: nei risultati c'è un riquadro che apre Marketplace con la stessa ricerca già impostata,
+  intorno a Genova (col raggio scelto, altrimenti 500 km). Gli annunci di Facebook non entrano nell'app: Facebook vieta
+  esplicitamente la raccolta automatica (robots.txt: "Collection of data on Facebook through automated means is prohibited")
+  e Marketplace richiede il login.
 - **Km falsi esclusi**: meno di 1.000 km su un'auto di almeno 2 anni (o senza anno), oppure numeri tipo 111.111 o 123.456.
 - **Avvisi dalla descrizione**, in verde o in rosso, sulle card e in un riquadro "Dalla descrizione" nella scheda:
   motore rifatto, distribuzione fatta, frizione nuova, tagliandi documentati, un solo proprietario, storica/ASI;

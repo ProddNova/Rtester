@@ -35,6 +35,7 @@ function parse(html) {
       seller: x.sellerType === 'PRIVATE' ? 'privato' : 'concessionario',
       image: x.firstMediumSizeImage || ((x.imageUrls || [])[0] ? x.imageUrls[0] + '?rule=ad-372.jpeg' : ''),
       photos: x.totalNumberOfPictures || 0,
+      pics: (x.imageUrls || []).slice(0, 8).filter((u) => /^https:\/\//.test(u || '')).map((u) => u + '?rule=ad-372.jpeg'),
       note: /ricambi/i.test(x.shortDescription || '') ? 'Forse solo ricambi' : ''
     };
   }).filter((x) => x.price);

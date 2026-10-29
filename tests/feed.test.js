@@ -26,3 +26,14 @@ test('tieni sveglio: pausa dalle 3 alle 8 ora italiana', () => {
   assert.strictEqual(quiet(new Date('2026-12-01T06:30:00Z')), true);  // 7:30 ora solare
   assert.strictEqual(quiet(new Date('2026-12-01T20:00:00Z')), false); // 21:00
 });
+
+test('feed: ogni pagina ha marche tutte diverse, mai due annunci di fila della stessa marca', () => {
+  const { pages, spread, rng, RARE } = require('../server/feed');
+  const ps = pages(RARE, 8);
+  ps.forEach((p) => assert.strictEqual(new Set(p.map((r) => r.make)).size, p.length));
+  assert.strictEqual(ps.reduce((n, p) => n + p.length, 0), RARE.length, 'nessun modello perso');
+  const items = [];
+  ['Saab', 'Saab', 'BMW', 'BMW', 'Fiat', 'Fiat', 'Mazda', 'Mazda'].forEach((mk, i) => items.push({ title: mk.toUpperCase() + ' modello ' + i, _g: mk }));
+  const out = spread(items, rng(5));
+  out.forEach((it, i) => { if (i) assert.notStrictEqual(it._g, out[i - 1]._g); });
+});

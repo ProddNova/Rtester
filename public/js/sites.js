@@ -219,8 +219,10 @@
       supports: ['marca', 'modello', 'parole', 'prezzo', 'anno', 'km', 'cambio', 'ordine'],
       build: function (s) {
         var SORT = { prezzo: 'price_ascend', recenti: 'creation_time_descend', km: 'vehicle_mileage_ascend' };
-        return 'https://www.facebook.com/marketplace/category/vehicles' + qs({
+        // cerca intorno a Genova: col raggio scelto, altrimenti 500 km (quasi tutto il Nord e il Centro)
+        return 'https://www.facebook.com/marketplace/genoa/vehicles' + qs({
           query: text(s),
+          radius: num(s.radius) || 500,
           minPrice: num(s.pmin), maxPrice: num(s.pmax),
           minYear: num(s.ymin), maxYear: num(s.ymax),
           maxMileage: num(s.kmmax),

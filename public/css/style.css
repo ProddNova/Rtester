@@ -151,7 +151,7 @@ input::placeholder { color: var(--dim); }
 @media (min-width: 1100px) { .feed { grid-template-columns: 1fr 1fr 1fr; } #view-search.active { max-width: 1100px; } #view-search .quick { max-width: 760px; } }
 .fcard { position: relative; display: block; overflow: hidden; background: var(--surface); border-radius: var(--r); text-decoration: none; }
 .fcard .ph { position: relative; aspect-ratio: 4 / 3; background: var(--surface-2); display: grid; place-items: center; color: var(--dim); }
-.fcard .ph img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
 .fcard .why {
   position: absolute; left: 10px; top: 10px; padding: 5px 10px; border-radius: 20px;
   background: rgba(17, 18, 20, .78); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
@@ -217,8 +217,8 @@ input::placeholder { color: var(--dim); }
   position: relative; width: 124px; height: 100px; overflow: hidden; background: var(--surface-2); border-radius: var(--r-sm);
   display: grid; place-items: center; color: var(--dim);
 }
-.ad .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.ad .ph .n { position: absolute; right: 5px; bottom: 5px; padding: 1px 6px; border-radius: 8px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 10.5px; font-weight: 600; }
+
+
 .ad .ph .new { position: absolute; left: 5px; top: 5px; padding: 2px 6px; border-radius: 6px; background: var(--accent); color: var(--accent-ink); font-size: 10px; font-weight: 800; }
 .ad .bd { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-right: 28px; }
 .ad .tt { font-size: 14.5px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
@@ -434,3 +434,26 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 .srow .x { width: 34px; height: 34px; border-radius: 10px; color: var(--muted); display: grid; place-items: center; }
 #tab-ban p { font-size: 13px; margin: 0 0 14px; }
 #tab-ban .chips { margin-bottom: 14px; }
+
+/* ---------- foto da scorrere nelle card ---------- */
+.strip-wrap { position: absolute; inset: 0; }
+.strip {
+  display: flex; width: 100%; height: 100%; overflow-x: auto; overflow-y: hidden;
+  scroll-snap-type: x mandatory; scrollbar-width: none; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+}
+.strip::-webkit-scrollbar { display: none; }
+.strip > img, .strip > .slot { flex: 0 0 100%; width: 100%; height: 100%; object-fit: cover; scroll-snap-align: start; scroll-snap-stop: always; display: block; }
+.strip > .slot { display: grid; place-items: center; background: var(--surface-2); color: var(--dim); }
+.strip > .slot .ic { width: 22px; height: 22px; }
+.ph .n { position: absolute; right: 6px; bottom: 6px; display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 9px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 11px; font-weight: 700; pointer-events: none; }
+.fcard .ph .n { right: 10px; bottom: 10px; font-size: 12px; padding: 3px 9px; }
+.ph .n .ic { width: 12px; height: 12px; }
+.fcard .why, .fcard .star, .ad .ph .new { z-index: 2; }
+
+/* ---------- riquadro Facebook Marketplace nei risultati ---------- */
+.mpcard { display: flex; align-items: center; gap: 12px; padding: 14px; border-radius: var(--r); text-decoration: none; background: rgba(24, 119, 242, .12); border: 1px solid rgba(24, 119, 242, .35); }
+.mp-ic { flex: 0 0 auto; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: #1877f2; color: #fff; }
+.mp-bd { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.mp-bd b { font-size: 14.5px; }
+.mp-bd span { font-size: 12.5px; color: var(--muted); }
+@media (min-width: 900px) { .mpcard { grid-column: 1 / -1; } }
