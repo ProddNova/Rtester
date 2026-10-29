@@ -1,5 +1,5 @@
 /* Service worker: fa funzionare l'app anche offline (i siti di annunci ovviamente no). */
-var CACHE = 'cacciauto-v1';
+var CACHE = 'cacciauto-v2';
 var FILES = [
   './', 'index.html', 'css/style.css',
   'js/data.js', 'js/sites.js', 'js/parse.js', 'js/dedup.js', 'js/app.js',
@@ -19,7 +19,9 @@ self.addEventListener('activate', function (e) {
 // Prima la rete (così prendi sempre l'ultima versione), la cache solo se sei offline.
 self.addEventListener('fetch', function (e) {
   var req = e.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  var u = new URL(req.url);
+  // le ricerche vanno sempre al server, mai dalla cache
+  if (req.method !== 'GET' || u.origin !== self.location.origin || u.pathname.indexOf('/api/') !== -1) return;
   e.respondWith(
     fetch(req).then(function (res) {
       var copy = res.clone();

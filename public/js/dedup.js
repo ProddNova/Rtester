@@ -207,7 +207,7 @@
   function encodeBoard(list, from) {
     var rows = list.map(function (x) {
       var v = x.votes || {};
-      return [x.url, x.title || '', x.price || 0, x.km || 0, x.year || 0, x.note || '', x.addedBy || '', x.addedAt || 0, packVote(v.a), packVote(v.b)];
+      return [x.url, x.title || '', x.price || 0, x.km || 0, x.year || 0, x.note || '', x.addedBy || '', x.addedAt || 0, packVote(v.a), packVote(v.b), x.image || '', x.alts || []];
     });
     return b64encode(JSON.stringify({ v: 1, f: from || '', r: rows }));
   }
@@ -216,12 +216,15 @@
     if (!obj || obj.v !== 1 || !Array.isArray(obj.r)) throw new Error('Formato non valido');
     return {
       from: obj.f || '',
-      list: obj.r.map(function (r) {
+      // solo link http(s): un link "javascript:" arrivato da fuori non deve finire in un href
+      list: obj.r.filter(function (r) { return Array.isArray(r) && /^https?:\/\//i.test(String(r[0])); }).map(function (r) {
         return {
           url: String(r[0]), key: listingKey(String(r[0])), site: detectSite(String(r[0])).id,
           title: r[1] || '', price: r[2] || null, km: r[3] || null, year: r[4] || null,
           note: r[5] || '', addedBy: r[6] || '', addedAt: r[7] || Date.now(),
-          votes: { a: unpackVote(r[8]), b: unpackVote(r[9]) }
+          votes: { a: unpackVote(r[8]), b: unpackVote(r[9]) },
+          image: typeof r[10] === 'string' && /^https:\/\//.test(r[10]) ? r[10] : '',
+          alts: Array.isArray(r[11]) ? r[11].filter(function (u) { return /^https?:\/\//.test(u); }) : []
         };
       })
     };

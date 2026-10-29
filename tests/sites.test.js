@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const S = require('../js/sites.js');
-const D = require('../js/data.js');
+const S = require('../public/js/sites.js');
+const D = require('../public/js/data.js');
 
 const full = {
   make: 'Saab', model: '9-3', kw: 'aero', pmin: '1000', pmax: '6000', ymin: '2005', ymax: '2011',
@@ -24,6 +24,7 @@ test('AutoScout24: path e parametri verificati', () => {
   assert.strictEqual(q.get('powerfrom'), '110'); // 150 CV -> 110 kW
   assert.strictEqual(q.get('sort'), 'price');
   assert.strictEqual(q.get('cy'), 'I');
+  assert.strictEqual(q.get('version'), 'aero');
 });
 
 test('AutoScout24: Europa ignora la regione', () => {
@@ -72,7 +73,7 @@ test('filtri mancanti segnalati', () => {
   assert.ok(am.missing.includes('prezzo'));
   assert.ok(am.missing.includes('km'));
   const as = S.plan(full).find((p) => p.site.id === 'autoscout');
-  assert.deepStrictEqual(as.missing, ['parole chiave']);
+  assert.deepStrictEqual(as.missing, []);
 });
 
 test('ogni modello della roulette esiste nella lista marche', () => {

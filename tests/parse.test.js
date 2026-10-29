@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const P = require('../js/parse.js');
+const P = require('../public/js/parse.js');
 
 const cases = [
   ['saab 9-3 aero', { make: 'Saab', model: '9-3', kw: 'aero' }],

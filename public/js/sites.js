@@ -91,7 +91,7 @@
       color: '#f5f200',
       ink: '#333',
       tag: 'Il più grande in Europa',
-      supports: ['marca', 'modello', 'prezzo', 'anno', 'km', 'carburante', 'cambio', 'carrozzeria', 'cv', 'zona', 'ordine', 'europa'],
+      supports: ['marca', 'modello', 'parole', 'prezzo', 'anno', 'km', 'carburante', 'cambio', 'carrozzeria', 'cv', 'zona', 'ordine', 'europa'],
       build: function (s) {
         var FUEL = { benzina: 'B', diesel: 'D', gpl: 'L', metano: 'C', elettrica: 'E', ibrida: '2,3' };
         var GEAR = { manuale: 'M', automatico: 'A' };
@@ -108,6 +108,7 @@
         var cvToKw = function (cv) { var n = num(cv); return n ? Math.round(n / 1.36) : ''; };
         return path + qs({
           atype: 'C',
+          version: s.kw || '',
           cy: s.europe ? 'D,A,B,E,F,I,L,NL' : 'I',
           damaged_listing: 'exclude',
           ustate: 'N,U',
@@ -247,7 +248,7 @@
     });
   }
 
-  var api = { SITES: SITES, plan: plan, slug: slug, activeFilters: activeFilters, strip: strip };
+  var api = { SITES: SITES, plan: plan, slug: slug, activeFilters: activeFilters, strip: strip, modelDropped: modelDropped };
   root.CA_SITES = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const X = require('../js/dedup.js');
+const X = require('../public/js/dedup.js');
 
 test('stesso annuncio Subito con link diversi = stessa chiave', () => {
   const a = X.listingKey('https://www.subito.it/auto/saab-9-3-vector-genova-571234567.htm');
