@@ -63,6 +63,7 @@ function detail(html) {
   return {
     title: [v.make, v.model].filter(Boolean).join(' '),
     version: v.modelVersionInput || '',
+    country: loc.countryCode || '',
     price: pub.priceRaw || null,
     negotiable: !!pub.negotiable,
     km: v.mileageInKmRaw || null,

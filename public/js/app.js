@@ -710,7 +710,7 @@
   }
 
   function adCard(it) {
-    var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
+    var tags = [countryFlag(it), h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })].filter(Boolean);
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
     if (it.postedLabel) tags.push(h('span', { text: it.postedLabel }));
@@ -946,6 +946,7 @@
       cleanVersion(a) ? h('div', { class: 'ver', text: cleanVersion(a) }) : null
     ]));
     wrap.appendChild(h('div', { class: 'ad-price' }, [
+      countryFlag(Object.assign({}, base, ad, { country: window.CA_COUNTRY.code(ad) || window.CA_COUNTRY.code(base), url: openUrl })),
       h('span', { class: 'pr', text: eur(a.price) }),
       dealBadge(Object.assign({}, base, ad && ad.market && typeof ad.market.deal === 'number' ? { deal: ad.market.deal, dealCat: ad.market.deal } : {})),
       ad && ad.negotiable ? h('span', { class: 'tag priv', text: 'trattabile' }) : null,
@@ -1156,7 +1157,7 @@
   var feed = { items: [], page: 0, loading: false, done: false, req: 0 };
   function loadFeed(reset) {
     if (reset) {
-      if (reset === 'shuffle') feedSeed = 1 + Math.floor(Math.random() * 1e6);
+      if (reset === 'shuffle') feedSeed = (feedSeed + Math.floor(Math.random() * 999999)) % 1000000 + 1;
       feed = { items: [], page: 0, loading: false, done: false, req: feed.req + 1 };
       $('feed').innerHTML = '';
     }
@@ -1168,7 +1169,7 @@
     for (var i = 0; i < (feed.page ? 1 : 4); i++) (feed.page ? more : $('feed')).appendChild(h('div', { class: 'skel tall' }));
     var q = 'api/feed?page=' + feed.page + '&mode=' + feedOpts.mode + '&seed=' + feedSeed +
       (feedOpts.pmax ? '&pmax=' + feedOpts.pmax : '') + (feedOpts.kmmax ? '&kmmax=' + feedOpts.kmmax : '') + '&area=' + (feedOpts.area || 'eu') + (feedOpts.body ? '&body=' + feedOpts.body : '');
-    api(q).then(function (j) {
+    return api(q).then(function (j) {
       if (myReq !== feed.req) return; // nel frattempo hai cambiato filtri
       feed.loading = false;
       if (!j.hasMore) feed.done = true;
@@ -1191,8 +1192,26 @@
     });
   }
 
+  // Il paese è quello dell'annuncio, mai quello del marchio dell'auto.
+  function countryFlag(it) {
+    var code = window.CA_COUNTRY.code(it);
+    if (!code) return null;
+    var name;
+    try { name = new Intl.DisplayNames(['it'], { type: 'region' }).of(code); } catch (e) { name = code; }
+    var flag = h('span', { class: 'country-flag', role: 'img', 'aria-label': name, title: name });
+    var colors = { IT: ['#009246', '#fff', '#ce2b37'], DE: ['#111', '#d00', '#ffce00'], FR: ['#002395', '#fff', '#ed2939'], NL: ['#ae1c28', '#fff', '#21468b'], AT: ['#ed2939', '#fff', '#ed2939'], BE: ['#111', '#fdda24', '#ef3340'], PL: ['#fff', '#dc143c'], ES: ['#aa151b', '#f1bf00', '#aa151b'], LU: ['#ed2939', '#fff', '#00a1de'] };
+    if (colors[code]) {
+      var vertical = ['IT', 'FR', 'BE'].indexOf(code) !== -1;
+      flag.style.background = 'linear-gradient(' + (vertical ? 'to right' : 'to bottom') + ', ' + colors[code].map(function (c, i, a) { return c + ' ' + (i * 100 / a.length) + '% ' + ((i + 1) * 100 / a.length) + '%'; }).join(', ') + ')';
+    } else {
+      flag.textContent = String.fromCodePoint.apply(String, code.split('').map(function (c) { return c.charCodeAt(0) + 127397; }));
+      flag.classList.add('emoji');
+    }
+    return flag;
+  }
+
   function feedCard(it) {
-    var tags = [h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })];
+    var tags = [countryFlag(it), h('span', { class: 'tag ' + it.site, text: SITE_SHORT[it.site] || it.site })].filter(Boolean);
     (it.also || []).forEach(function (a) { tags.push(h('span', { class: 'tag ' + a.site, text: '+' + (SITE_SHORT[a.site] || a.site) })); });
     if (it.seller === 'privato') tags.push(h('span', { class: 'tag priv', text: 'privato' }));
     if (it.city) tags.push(h('span', { class: 'mini-ic' }, it2('map-pin', [it.city, distLabel(it)].filter(Boolean).join(' · '))));
@@ -1313,7 +1332,7 @@
     var on = isSaved(it);
     var req = on ? post('api/saved', { action: 'remove', key: k }) : post('api/saved', { action: 'add', item: {
       url: it.url, title: it.title, version: it.version, price: it.price, km: it.km, year: it.year, cv: it.cv,
-      fuel: it.fuel, city: it.city, image: it.image, alts: (it.also || []).map(function (a) { return a.url; })
+      fuel: it.fuel, city: it.city, country: window.CA_COUNTRY.code(it), image: it.image, alts: (it.also || []).map(function (a) { return a.url; })
     } });
     return req.then(function (j) {
       sync('saved', j);
@@ -1364,6 +1383,7 @@
     var drop = priceDrop(x);
     var tags = [h('span', { class: 'tag ' + (SITE_SHORT[x.site] ? x.site : 'altro'), text: SITE_SHORT[x.site] || X.detectSite(x.url).name })];
     (x.alts || []).forEach(function (u) { var s = X.detectSite(u).id; tags.push(h('span', { class: 'tag ' + (SITE_SHORT[s] ? s : 'altro'), text: '+' + (SITE_SHORT[s] || s) })); });
+    var flag = countryFlag(x); if (flag) tags.unshift(flag);
     tags.push(h('span', { text: 'salvato ' + ago(x.savedAt) }));
     if (x.city) tags.push(h('span', { class: 'city', text: x.city }));
     var card = h('a', { class: 'ad saved', href: '#/annuncio?u=' + encodeURIComponent(x.url) }, [
@@ -1508,7 +1528,42 @@
     Array.prototype.forEach.call(document.querySelectorAll('[data-icon]'), function (el) { el.insertBefore(ic(el.getAttribute('data-icon')), el.firstChild); });
   }
 
+  // Una sola richiesta al rilascio; i gesti orizzontali delle foto restano liberi.
+  function initPullRefresh() {
+    var start = null, distance = 0, busy = false;
+    var indicator = h('div', { class: 'pull-refresh', role: 'status', 'aria-live': 'polite', hidden: true });
+    document.body.appendChild(indicator);
+    function home() { return $('view-search').classList.contains('active'); }
+    function reset() { start = null; distance = 0; if (!busy) indicator.hidden = true; }
+    document.addEventListener('touchstart', function (e) {
+      reset();
+      if (busy || feed.loading || !home() || window.scrollY > 0 || e.touches.length !== 1 ||
+          e.target.closest('input, textarea, select, button, dialog, .combo-list')) return;
+      start = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { passive: true });
+    document.addEventListener('touchmove', function (e) {
+      if (!start) return;
+      if (!home() || e.touches.length !== 1 || window.scrollY > 0) { reset(); return; }
+      var dy = e.touches[0].clientY - start.y, dx = Math.abs(e.touches[0].clientX - start.x);
+      if (dy < 0 || dx > Math.max(12, dy)) { reset(); return; }
+      if (dy <= 0) return;
+      if (e.cancelable) e.preventDefault();
+      distance = Math.min(dy, 150);
+      indicator.hidden = false;
+      indicator.textContent = distance >= 80 ? 'Rilascia per scoprire altre auto' : 'Trascina per cambiare auto';
+    }, { passive: false });
+    document.addEventListener('touchend', function () {
+      if (!start || distance < 80 || !home()) { reset(); return; }
+      busy = true; start = null; distance = 0;
+      indicator.textContent = 'Cerco altre auto…';
+      Promise.resolve(loadFeed('shuffle')).finally(function () { busy = false; indicator.hidden = true; });
+    }, { passive: true });
+    document.addEventListener('touchcancel', reset, { passive: true });
+    window.addEventListener('hashchange', reset);
+  }
+
   function init() {
+    initPullRefresh();
     staticIcons();
     noPinchZoom();
     buildForm();

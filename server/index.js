@@ -100,7 +100,7 @@ function cleanItem(raw, keepStamps) {
     title: str(raw.title, 200) || DEDUP.titleFromUrl(url) || DEDUP.detectSite(url).name,
     version: str(raw.version, 200),
     price, km: int(raw.km), year: int(raw.year), cv: int(raw.cv),
-    fuel: str(raw.fuel, 20), city: str(raw.city, 120),
+    fuel: str(raw.fuel, 20), city: str(raw.city, 120), country: require('../public/js/country').code(raw),
     image: httpsUrl(raw.image),
     alts: (Array.isArray(raw.alts) ? raw.alts : []).map(httpUrl).filter(Boolean).slice(0, 6),
     note: str(raw.note, 500),
