@@ -1225,9 +1225,10 @@
       feed.emptyPages = feed.items.length === before ? feed.emptyPages + 1 : 0;
       // Salta pagine senza novità anche dopo l'avvio, con limite per evitare richieste senza fine.
       var autoNext = !feed.done && ((feed.emptyPages > 0 && feed.emptyPages < 3) || (feed.items.length < 12 && feed.page < 8));
-      if (autoNext) setTimeout(function () { if (myReq === feed.req) loadFeed(); }, 50);
+      if (autoNext) return new Promise(function (resolve) { setTimeout(function () { resolve(myReq === feed.req ? loadFeed() : false); }, 50); });
       else if (!feed.done && feed.emptyPages) more.appendChild(h('button', { class: 'sbtn ghost', type: 'button', text: 'Continua a scoprire', on: { click: function () { feed.emptyPages = 0; loadFeed(); } } }));
       if (!feed.items.length && !autoNext) $('feed').appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Nessun annuncio trovato con questi filtri' }), 'Prova un altro budget oppure continua a scoprire.']));
+      return true;
 
     }).catch(function () {
       if (myReq !== feed.req) return;
@@ -1236,6 +1237,7 @@
       more.innerHTML = '';
       more.appendChild(h('div', { class: 'empty' }, ['Non riesco a caricare il feed (il server si sta svegliando?). ',
         h('button', { class: 'link', type: 'button', text: 'Riprova', on: { click: function () { loadFeed(); } } })]));
+      return false;
     });
   }
 
@@ -1577,47 +1579,74 @@
 
   // Una sola richiesta al rilascio; i gesti orizzontali delle foto restano liberi.
   function initPullRefresh() {
-    var start = null, distance = 0, busy = false;
+    var start = null, distance = 0, busy = false, hideTimer;
+    var threshold = 44;
     var indicator = h('div', { class: 'pull-refresh', role: 'status', 'aria-live': 'polite', hidden: true });
-    $('view-search').insertBefore(indicator, $('searchForm'));
-    function paint(progress, loading) {
-      indicator.hidden = false; indicator.classList.toggle('loading', !!loading);
+    document.body.appendChild(indicator);
+    function paint(progress, phase) {
+      clearTimeout(hideTimer);
+      indicator.hidden = false;
+      indicator.classList.toggle('loading', phase === 'loading');
+      indicator.classList.toggle('complete', phase === 'done');
       indicator.style.setProperty('--pull', Math.min(progress, 1));
       indicator.textContent = '';
-      var icon = ic('refresh-cw'); icon.style.transform = loading ? '' : 'rotate(' + (progress * 180) + 'deg)';
-      indicator.appendChild(icon);
-      indicator.appendChild(h('span', { text: loading ? 'Aggiorno…' : progress >= 1 ? 'Rilascia per aggiornare' : 'Scopri altre auto' }));
+      var icon = ic(phase === 'done' ? 'check' : 'refresh-cw');
+      icon.style.transform = phase ? '' : 'rotate(' + (progress * 180) + 'deg)';
+      indicator.appendChild(h('div', { class: 'pull-symbol' }, [icon]));
+      var title = phase === 'loading' ? 'Aggiornamento in corso' : phase === 'done' ? 'Consigli aggiornati' : phase === 'error' ? 'Aggiornamento non riuscito' : phase === 'empty' ? 'Nessun annuncio trovato' : progress >= 1 ? 'Rilascia per aggiornare' : 'Trascina ancora un poco';
+      var detail = phase === 'loading' ? 'Sto caricando altre auto…' : phase === 'done' ? 'Le nuove auto sono pronte da scoprire' : phase === 'error' ? 'Riprova tra qualche secondo' : phase === 'empty' ? 'Prova ad allargare i filtri' : 'Cambia le auto consigliate nella home';
+      indicator.appendChild(h('div', { class: 'pull-copy' }, [h('strong', { text: title }), h('span', { text: detail })]));
     }
     function home() { return $('view-search').classList.contains('active'); }
     function reset() { start = null; distance = 0; if (!busy) indicator.hidden = true; }
+    function refresh() {
+      if (busy || !home()) return;
+      busy = true; start = null; distance = 0;
+      var since = Date.now();
+      $('feed').setAttribute('aria-busy', 'true');
+      $('btnFeedRefresh').disabled = true;
+      paint(1, 'loading');
+      return Promise.resolve(loadFeed('shuffle')).then(function (ok) {
+        // Lo stato di caricamento rimane leggibile anche con risposte già in cache.
+        return new Promise(function (resolve) { setTimeout(function () { resolve(ok); }, Math.max(0, 650 - (Date.now() - since))); });
+      }).then(function (ok) {
+        busy = false;
+        $('feed').setAttribute('aria-busy', 'false');
+        $('btnFeedRefresh').disabled = false;
+        if (!home()) { indicator.hidden = true; return; }
+        paint(1, ok === false ? 'error' : feed.items.length ? 'done' : 'empty');
+        hideTimer = setTimeout(function () { indicator.hidden = true; }, 1500);
+      });
+    }
     document.addEventListener('touchstart', function (e) {
       reset();
-      if (busy || feed.loading || !home() || window.scrollY > 0 || e.touches.length !== 1 ||
+      if (busy || !home() || e.touches.length !== 1 ||
           e.target.closest('input, textarea, select, button, dialog, .combo-list')) return;
       start = { x: e.touches[0].clientX, y: e.touches[0].clientY };
     }, { passive: true });
     document.addEventListener('touchmove', function (e) {
       if (!start) return;
-      if (!home() || e.touches.length !== 1 || window.scrollY > 0) { reset(); return; }
+      if (!home() || e.touches.length !== 1) { reset(); return; }
+      // Arrivando in cima durante lo stesso gesto, puoi continuare a tirare senza staccare il dito.
+      if (window.scrollY > 2) { start = { x: e.touches[0].clientX, y: e.touches[0].clientY }; return; }
       var dy = e.touches[0].clientY - start.y, dx = Math.abs(e.touches[0].clientX - start.x);
-      if (dy < 0 || dx > Math.max(12, dy)) { reset(); return; }
-      if (dy <= 0) return;
+      if (dy < 0 || dx > Math.max(16, dy)) { reset(); return; }
+      if (dy < 5) return;
       if (e.cancelable) e.preventDefault();
-      distance = Math.min(dy, 150);
-      paint(distance / 80, false);
+      distance = Math.min(dy, 120);
+      paint(distance / threshold, '');
     }, { passive: false });
     document.addEventListener('touchend', function () {
-      if (!start || distance < 80 || !home()) { reset(); return; }
-      busy = true; start = null; distance = 0;
-      paint(1, true);
-      Promise.resolve(loadFeed('shuffle')).finally(function () { busy = false; indicator.hidden = true; });
+      if (!start || distance < threshold || !home()) { reset(); return; }
+      refresh();
     }, { passive: true });
     document.addEventListener('touchcancel', reset, { passive: true });
-    window.addEventListener('hashchange', reset);
+    window.addEventListener('hashchange', function () { reset(); if (!home()) indicator.hidden = true; });
+    return refresh;
   }
 
   function init() {
-    initPullRefresh();
+    var refreshHome = initPullRefresh();
     staticIcons();
     noPinchZoom();
     buildForm();
@@ -1625,7 +1654,7 @@
     buildBanForm();
     renderBans();
     loadBans();
-    $('btnFeedRefresh').addEventListener('click', function () { loadFeed('shuffle'); window.scrollTo(0, $('feedMode').getBoundingClientRect().top + window.scrollY - 70); });
+    $('btnFeedRefresh').addEventListener('click', function () { refreshHome(); window.scrollTo(0, $('feedMode').getBoundingClientRect().top + window.scrollY - 70); });
     writeForm(state.search);
     $('sort2').addEventListener('change', function () {
       state.search.sort2 = $('sort2').value;

@@ -5,13 +5,15 @@ const fs = require('node:fs');
 
 function setup() {
   const source = fs.readFileSync(require.resolve('../public/js/app'), 'utf8');
+  const titles = [];
   const events = {}, indicator = { classList: { toggle() {} }, style: { setProperty() {} }, appendChild() {} }, calls = [];
   let active = true, resolve;
   const context = {
     window: { scrollY: 0, addEventListener: (name, fn) => { events[name] = fn; } },
     document: { body: { appendChild() {} }, addEventListener: (name, fn) => { events[name] = fn; } },
-    h: () => indicator, ic: () => ({ style: {} }), $: () => ({ insertBefore() {}, parentNode: { insertBefore() {} }, classList: { contains: () => active } }),
-    feed: { loading: false },
+    h: (tag, attrs) => { if (tag === 'strong') titles.push(attrs.text); return indicator; }, ic: () => ({ style: {} }), $: () => ({ setAttribute() {}, insertBefore() {}, parentNode: { insertBefore() {} }, classList: { contains: () => active } }),
+    feed: { loading: false, items: [{}] },
+    setTimeout: (fn, ms) => { if (ms < 1000) queueMicrotask(fn); return 1; }, clearTimeout() {},
     loadFeed: (mode) => { calls.push(mode); return new Promise((r) => { resolve = r; }); }
   };
   vm.runInNewContext(source.slice(source.indexOf('  function initPullRefresh()'), source.indexOf('  function init()')) + '\ninitPullRefresh();', context);
@@ -19,12 +21,12 @@ function setup() {
     const e = Object.assign({ touches: [{ clientX: x, clientY: y }], target: { closest: () => false }, cancelable: true, preventDefault() { this.prevented = true; } }, extra);
     events[name](e); return e;
   }
-  return { context, calls, indicator, emit, leave: () => { active = false; }, finish: async () => { resolve(); await new Promise(setImmediate); } };
+  return { context, calls, indicator, titles, emit, leave: () => { active = false; }, finish: async () => { resolve(); await new Promise(setImmediate); } };
 }
 
 test('pull: threshold, native gesture cancellation, one shuffle until completion', async () => {
   const s = setup();
-  s.emit('touchstart'); s.emit('touchmove', 100, 50); s.emit('touchend');
+  s.emit('touchstart'); s.emit('touchmove', 100, 30); s.emit('touchend');
   assert.equal(s.calls.length, 0);
   s.emit('touchstart');
   assert.equal(s.emit('touchmove', 100, 100).prevented, true);
@@ -33,14 +35,15 @@ test('pull: threshold, native gesture cancellation, one shuffle until completion
   s.emit('touchstart'); s.emit('touchmove', 100, 100); s.emit('touchend');
   assert.equal(s.calls.length, 1);
   await s.finish();
-  assert.equal(s.indicator.hidden, true);
+  assert.equal(s.indicator.hidden, false);
+  assert.equal(s.titles.at(-1), 'Consigli aggiornati');
   s.emit('touchstart'); s.emit('touchmove', 100, 90); s.emit('touchend');
   assert.equal(s.calls.length, 2);
   await s.finish();
 });
 
 test('pull: ignores horizontal, cancelled, multitouch, scrolled and non-home gestures', () => {
-  for (const kind of ['horizontal', 'cancel', 'multitouch', 'scroll', 'route', 'control', 'loading']) {
+  for (const kind of ['horizontal', 'cancel', 'multitouch', 'scroll', 'route', 'control']) {
     const s = setup();
     if (kind === 'scroll') s.context.window.scrollY = 100;
     if (kind === 'loading') s.context.feed.loading = true;
@@ -51,4 +54,16 @@ test('pull: ignores horizontal, cancelled, multitouch, scrolled and non-home ges
     s.emit('touchend');
     assert.equal(s.calls.length, 0, kind);
   }
+});
+
+test('pull: un gesto breve funziona anche arrivando in cima senza staccare il dito', async () => {
+  const s = setup();
+  s.context.window.scrollY = 100;
+  s.emit('touchstart'); s.emit('touchmove', 100, 100);
+  s.context.window.scrollY = 0;
+  s.emit('touchmove', 100, 145); s.emit('touchend');
+  assert.deepEqual(s.calls, ['shuffle']);
+  assert.equal(s.titles.at(-1), 'Aggiornamento in corso');
+  await s.finish();
+  assert.equal(s.titles.at(-1), 'Consigli aggiornati');
 });
