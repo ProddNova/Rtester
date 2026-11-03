@@ -483,4 +483,17 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .6); }
 /* Paese della vettura e pull-to-refresh mobile */
 .country-flag { display: inline-block; width: 17px; height: 11px; border-radius: 2px; flex: 0 0 auto; box-shadow: 0 0 0 1px rgba(255,255,255,.12); overflow: hidden; }
 .country-flag.emoji { width: auto; height: auto; font-size: 15px; line-height: 1; box-shadow: none; }
-.pull-refresh { position: fixed; z-index: 60; top: calc(68px + env(safe-area-inset-top, 0px)); left: 50%; transform: translateX(-50%); padding: 10px 16px; border-radius: 20px; background: var(--surface-2); color: var(--text); box-shadow: 0 4px 18px #0006; font-size: 12px; white-space: nowrap; pointer-events: none; }
+
+/* Native top layer avoids transformed ancestors and browser-toolbar clipping. */
+.adv { width: 100%; max-width: none; height: 100vh; height: 100dvh; max-height: none; margin: 0; border: 0; padding: max(12px, env(safe-area-inset-top)) 0 0; background: transparent; color: var(--text); }
+.adv::backdrop { background: #0009; }
+.adv-panel { padding-top: 0; max-height: 100%; max-height: calc(100dvh - max(12px, env(safe-area-inset-top))); scroll-padding-top: 68px; }
+.adv-panel > .sheet-title { position: sticky; top: 0; z-index: 2; margin: 0 -16px 12px; padding: 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.filters-open { overflow: hidden; }
+#feedMode { display: grid; grid-template-columns: 1.4fr 1fr 1fr; padding: 6px; gap: 5px; }
+#feedMode button { padding: 10px 8px; height: auto; min-height: 44px; font-size: clamp(11px, 3.3vw, 13.5px); gap: 5px; }
+@media (max-width: 350px) { #feedMode button { flex-direction: column; gap: 4px; } }
+.pull-refresh { display: flex; align-items: center; justify-content: center; gap: 8px; height: calc(30px + 22px * var(--pull, 0)); color: var(--muted); font-size: 12px; overflow: hidden; }
+.pull-refresh .ic { width: 18px; height: 18px; color: var(--accent); }
+.pull-refresh.loading .ic { animation: refresh-spin .8s linear infinite; }
+@keyframes refresh-spin { to { transform: rotate(360deg); } }

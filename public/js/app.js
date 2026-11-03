@@ -126,22 +126,29 @@
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       state.search = readForm();
-      $('adv').hidden = true;
+      toggleFilters(false);
       results.sig = ''; // "Cerca" ricarica sempre
       go('#/risultati');
     });
     $('btnReset').addEventListener('click', function () { writeForm(EMPTY); updateMoreCount(); });
     $('btnClear').addEventListener('click', clearFilters);
-    $('btnMore').addEventListener('click', function () { $('adv').hidden = false; });
-    $('btnAdvClose').addEventListener('click', function () { $('adv').hidden = true; updateMoreCount(); });
-    $('adv').addEventListener('click', function (e) { if (e.target === $('adv')) { $('adv').hidden = true; updateMoreCount(); } });
+    $('btnMore').addEventListener('click', function () { toggleFilters(true); });
+    $('btnAdvClose').addEventListener('click', function () { toggleFilters(false); updateMoreCount(); });
+    $('adv').addEventListener('click', function (e) { if (e.target === $('adv')) { toggleFilters(false); updateMoreCount(); } });
     f.addEventListener('change', updateMoreCount);
+    ['ymin', 'ymax'].forEach(function (key) { f.elements[key].addEventListener('change', syncGeneration); });
+    $('fGeneration').addEventListener('change', function () {
+      var years = this.value.split(':');
+      f.elements.ymin.value = years[0] || ''; f.elements.ymax.value = years[1] || '';
+      updateMoreCount();
+    });
+    $('adv').addEventListener('cancel', function (e) { e.preventDefault(); toggleFilters(false); });
     QUICK.forEach(function (q) {
-      $('quickChips').appendChild(h('button', { class: 'chip plain quickc', type: 'button', on: { click: function () { $('adv').hidden = true; applySearch(q.s); } } }, it2(q.i, q.n)));
+      $('quickChips').appendChild(h('button', { class: 'chip plain quickc', type: 'button', on: { click: function () { toggleFilters(false); applySearch(q.s); } } }, it2(q.i, q.n)));
     });
   }
 
-  var ADV_FIELDS = ['kw', 'pmin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region', 'radius'];
+  var ADV_FIELDS = ['kw', 'pmin', 'ymin', 'ymax', 'kmmin', 'kmmax', 'fuel', 'gear', 'body', 'seller', 'cvmin', 'cvmax', 'region', 'radius'];
   function updateMoreCount() {
     var f = $('searchForm'), n = 0;
     ADV_FIELDS.forEach(function (k) { if (String(f.elements[k].value || '').trim()) n++; });
@@ -278,6 +285,7 @@
       return [{ label: '', items: filterNames(names, q) }];
     }, function (v) {
       $('fMake').dataset.last = v;
+      clearGenerationRange();
       fillModels(v, '');
       if (v) setTimeout(function () { $('fModel').focus(); }, 60);
     });
@@ -286,7 +294,7 @@
       var g = MODELS_OF.groups.slice().sort(byName), m = MODELS_OF.models.slice().sort(byName);
       if (!q) return [{ label: g.length ? 'Gamme' : '', items: g }, { label: 'Modelli', items: m }];
       return [{ label: '', items: filterNames(g.concat(m), q) }];
-    }, function (v) { $('fModel').dataset.last = v; });
+    }, function (v) { clearGenerationRange(); $('fModel').dataset.last = v; fillGenerations(); });
   }
   function fillModels(make, value) {
     var mk = makeInfo(make);
@@ -295,8 +303,40 @@
     inp.disabled = !mk;
     inp.placeholder = mk ? 'Tutti i modelli' : 'Prima la marca';
     modelCombo.set(mk ? value : '');
+    fillGenerations();
   }
   function commitCombos() { makeCombo.commit(); modelCombo.commit(); }
+
+  function toggleFilters(open) {
+    var panel = $('adv');
+    if (open) {
+      panel.hidden = false;
+      panel.showModal();
+      panel.querySelector('.adv-panel').scrollTop = 0;
+      document.documentElement.classList.add('filters-open');
+    } else {
+      panel.close(); panel.hidden = true;
+      document.documentElement.classList.remove('filters-open');
+    }
+  }
+
+  function clearGenerationRange() {
+    if ($('fGeneration').value) { var f = $('searchForm'); f.elements.ymin.value = ''; f.elements.ymax.value = ''; }
+  }
+  function fillGenerations() {
+    var sel = $('fGeneration');
+    var list = window.CA_GENERATIONS.list($('fMake').value, $('fModel').value);
+    sel.innerHTML = '';
+    sel.appendChild(h('option', { value: '', text: list.length ? 'Tutte le generazioni' : ($('fModel').value ? 'Scegli gli anni nei filtri' : 'Prima scegli il modello') }));
+    list.forEach(function (g) { sel.appendChild(h('option', { value: g.from + ':' + g.to, text: g.name + ' · ' + g.from + '–' + g.to })); });
+    sel.disabled = !list.length;
+    syncGeneration();
+  }
+  function syncGeneration() {
+    var f = $('searchForm'), sel = $('fGeneration');
+    var key = f.elements.ymin.value + ':' + f.elements.ymax.value;
+    sel.value = Array.prototype.some.call(sel.options, function (o) { return o.value === key; }) ? key : '';
+  }
 
   function readForm() {
     commitCombos();
@@ -315,6 +355,7 @@
     FORM_FIELDS.forEach(function (k) { if (k !== 'model' && k !== 'make') f.elements[k].value = s[k] || ''; });
     makeCombo.set(makeInfo(s.make) ? s.make : '');
     fillModels(s.make, s.model);
+    syncGeneration();
     f.elements.area.value = ['it', 'estero'].indexOf(s.area) !== -1 ? s.area : 'eu';
     updateMoreCount();
   }
@@ -1152,16 +1193,18 @@
   // ---------------------------------------------------------------- feed della home
   // opzioni del feed (ricordate sul telefono) e ordine casuale nuovo a ogni apertura
   var feedOpts = Object.assign({ mode: 'rare', pmax: '', kmmax: '', body: '', area: 'eu' }, lget('feed', {}));
+  if (!lget('feedAreaDefaultV2', false)) { feedOpts.area = 'eu'; lset('feed', feedOpts); lset('feedAreaDefaultV2', true); }
   if (['rare', 'offerte', 'recenti'].indexOf(feedOpts.mode) === -1) feedOpts.mode = 'rare'; // il vecchio mix
   var feedSeed = 1 + Math.floor(Math.random() * 1e6);
-  var feed = { items: [], page: 0, loading: false, done: false, req: 0 };
+  var feed = { items: [], page: 0, loading: false, done: false, emptyPages: 0, req: 0 };
   function loadFeed(reset) {
     if (reset) {
       if (reset === 'shuffle') feedSeed = (feedSeed + Math.floor(Math.random() * 999999)) % 1000000 + 1;
-      feed = { items: [], page: 0, loading: false, done: false, req: feed.req + 1 };
+      feed = { items: [], page: 0, loading: false, done: false, emptyPages: 0, req: feed.req + 1 };
       $('feed').innerHTML = '';
     }
     if (feed.loading || feed.done) return;
+    Array.prototype.forEach.call($('feed').querySelectorAll(':scope > .empty'), function (el) { el.remove(); });
     var myReq = feed.req;
     feed.loading = true;
     var more = $('feedMore');
@@ -1179,9 +1222,13 @@
       var before = feed.items.length;
       feed.items = X.mergeListings(feed.items, j.items.filter(function (x) { return !blocked(x); }).map(function (x) { x.key = keyOf(x); return x; }));
       feed.items.slice(before).forEach(function (it) { byUrl[it.url] = it; $('feed').appendChild(feedCard(it)); });
-      // pochi annunci (es. budget basso): carica subito la pagina dopo, fino ad averne almeno 12
-      if ((feed.items.length === before || feed.items.length < 12) && feed.page < 8 && !feed.done) setTimeout(function () { loadFeed(); }, 50);
-      if (feed.items.length === 0 && (feed.done || feed.page >= 8)) $('feed').appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Niente con questo budget' }), 'Prova ad alzare il budget o i km massimi.']));
+      feed.emptyPages = feed.items.length === before ? feed.emptyPages + 1 : 0;
+      // Salta pagine senza novità anche dopo l'avvio, con limite per evitare richieste senza fine.
+      var autoNext = !feed.done && ((feed.emptyPages > 0 && feed.emptyPages < 3) || (feed.items.length < 12 && feed.page < 8));
+      if (autoNext) setTimeout(function () { if (myReq === feed.req) loadFeed(); }, 50);
+      else if (!feed.done && feed.emptyPages) more.appendChild(h('button', { class: 'sbtn ghost', type: 'button', text: 'Continua a scoprire', on: { click: function () { feed.emptyPages = 0; loadFeed(); } } }));
+      if (!feed.items.length && !autoNext) $('feed').appendChild(h('div', { class: 'empty' }, [h('b', { text: 'Nessun annuncio trovato con questi filtri' }), 'Prova un altro budget oppure continua a scoprire.']));
+
     }).catch(function () {
       if (myReq !== feed.req) return;
       feed.loading = false;
@@ -1532,7 +1579,15 @@
   function initPullRefresh() {
     var start = null, distance = 0, busy = false;
     var indicator = h('div', { class: 'pull-refresh', role: 'status', 'aria-live': 'polite', hidden: true });
-    document.body.appendChild(indicator);
+    $('view-search').insertBefore(indicator, $('searchForm'));
+    function paint(progress, loading) {
+      indicator.hidden = false; indicator.classList.toggle('loading', !!loading);
+      indicator.style.setProperty('--pull', Math.min(progress, 1));
+      indicator.textContent = '';
+      var icon = ic('refresh-cw'); icon.style.transform = loading ? '' : 'rotate(' + (progress * 180) + 'deg)';
+      indicator.appendChild(icon);
+      indicator.appendChild(h('span', { text: loading ? 'Aggiorno…' : progress >= 1 ? 'Rilascia per aggiornare' : 'Scopri altre auto' }));
+    }
     function home() { return $('view-search').classList.contains('active'); }
     function reset() { start = null; distance = 0; if (!busy) indicator.hidden = true; }
     document.addEventListener('touchstart', function (e) {
@@ -1549,13 +1604,12 @@
       if (dy <= 0) return;
       if (e.cancelable) e.preventDefault();
       distance = Math.min(dy, 150);
-      indicator.hidden = false;
-      indicator.textContent = distance >= 80 ? 'Rilascia per scoprire altre auto' : 'Trascina per cambiare auto';
+      paint(distance / 80, false);
     }, { passive: false });
     document.addEventListener('touchend', function () {
       if (!start || distance < 80 || !home()) { reset(); return; }
       busy = true; start = null; distance = 0;
-      indicator.textContent = 'Cerco altre auto…';
+      paint(1, true);
       Promise.resolve(loadFeed('shuffle')).finally(function () { busy = false; indicator.hidden = true; });
     }, { passive: true });
     document.addEventListener('touchcancel', reset, { passive: true });

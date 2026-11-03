@@ -2,7 +2,7 @@
  * Liste del feed della home.
  *
  * RARE (Da appassionati): make e model come su AutoScout24 (vedi public/js/models.js), kw = parola chiave
- * (versione), y = anni, p = prezzo massimo sensato, b = carrozzeria (citycar, berlina, sw, coupe, cabrio, suv),
+ * (versione), y = anni, p = riferimento editoriale di prezzo (il feed rispetta il budget scelto), b = carrozzeria (citycar, berlina, sw, coupe, cabrio, suv),
  * f = curiosità mostrata sulla card.
  *
  * POPULAR (Offerte): modelli diffusi in cui cercare prezzi sotto il mercato secondo AutoScout24.
@@ -15,12 +15,12 @@ const RARE = [
   R('Alfa Romeo', 'Spider', '', 1995, 2006, 12000, 'cabrio', 'La Spider 916 è stata disegnata da Pininfarina.'),
   R('Alfa Romeo', 'GTV', '', 1995, 2005, 15000, 'coupe', 'Disegnata da Enrico Fumia per Pininfarina.'),
   R('Alfa Romeo', '75', '', 1985, 1992, 25000, 'berlina', 'Schema transaxle: cambio al posteriore per bilanciare i pesi.'),
-  R('Alfa Romeo', '155', 'q4', 1992, 1998, 15000, 'berlina', 'In versione corsa ha vinto il DTM nel 1993.'),
+  R('Alfa Romeo', '155', 'q4', 1992, 1995, 15000, 'berlina', 'In versione corsa ha vinto il DTM nel 1993.'),
   R('Alfa Romeo', '156', 'gta', 2002, 2006, 20000, 'berlina', 'La GTA monta il V6 "Busso" 3.2 da 250 CV.'),
   R('Alfa Romeo', '147', 'gta', 2002, 2010, 18000, 'berlina', 'Sotto il cofano c\'è il V6 "Busso" 3.2 da 250 CV.'),
-  R('Alfa Romeo', 'GT', '', 2003, 2010, 10000, 'coupe', 'Coupé su base 147, disegnata da Bertone.'),
+  R('Alfa Romeo', 'GT', '', 2003, 2010, 10000, 'coupe', 'La coupé Bertone della famiglia 147/156.'),
   R('Alfa Romeo', 'Brera', '', 2005, 2010, 16000, 'coupe', 'Nata da un prototipo di Giugiaro presentato nel 2002.'),
-  R('Alfa Romeo', '33', '16v', 1983, 1995, 8000, 'berlina', 'La "Permanent 4" aveva la trazione integrale.'),
+  R('Alfa Romeo', '33', '16v', 1990, 1995, 8000, 'berlina', 'Il boxer 1.7 16V è la versione più sportiva della 33.'),
   R('Alfa Romeo', 'Giulia', 'quadrifoglio', 2016, 2024, 60000, 'berlina', 'Il V6 2.9 biturbo da 510 CV è di scuola Ferrari.'),
   R('Alfa Romeo', '4C', '', 2013, 2020, 70000, 'coupe', 'Telaio monoscocca in fibra di carbonio.'),
   R('Lancia', 'Delta', 'integrale', 1987, 1995, 90000, 'berlina', 'Sei titoli costruttori WRC di fila, dal 1987 al 1992.'),
@@ -41,11 +41,11 @@ const RARE = [
   // ---- Germania
   R('BMW', 'M3', '', 1986, 2013, 60000, 'coupe', 'Dalla E30 alla E92: le M3 aspirate che hanno fatto la storia.'),
   R('BMW', 'Z3', '', 1996, 2002, 20000, 'cabrio', 'È la BMW di James Bond in "GoldenEye" (1995).'),
-  R('BMW', 'Z4', '', 2002, 2016, 18000, 'cabrio', 'Le prime Z4 hanno il sei cilindri in linea aspirato.'),
-  R('BMW', 'Serie 3', '330', 1998, 2006, 12000, 'berlina', 'Sei cilindri in linea e trazione posteriore a prezzi umani.'),
-  R('BMW', 'Serie 3', '325', 1985, 1994, 18000, 'berlina', 'La E30 325i: la Serie 3 più amata dagli appassionati.'),
-  R('BMW', 'Serie 1', '130', 2005, 2012, 15000, 'citycar', 'Sei cilindri da 265 CV in una compatta a trazione posteriore.'),
-  R('BMW', 'Serie 5', '540', 1996, 2003, 15000, 'berlina', 'La E39 540i ha un V8 da 286 CV.'),
+  R('BMW', 'Z4', '', 2002, 2016, 18000, 'cabrio', 'Le versioni a sei cilindri sono il cuore della tradizione Z4.'),
+  R('BMW', 'Serie 3', '330i', 1998, 2006, 12000, 'berlina', 'Sei cilindri in linea e trazione posteriore a prezzi umani.'),
+  R('BMW', 'Serie 3', '325i', 1985, 1994, 18000, 'berlina', 'La E30 325i: la Serie 3 più amata dagli appassionati.'),
+  R('BMW', 'Serie 1', '130i', 2005, 2012, 15000, 'citycar', 'Sei cilindri da 265 CV in una compatta a trazione posteriore.'),
+  R('BMW', 'Serie 5', '540i', 1996, 2003, 15000, 'berlina', 'La E39 540i ha un V8 da 286 CV.'),
   R('BMW', 'M5', '', 2005, 2010, 35000, 'berlina', 'La E60 monta un V10 da oltre 500 CV.'),
   R('BMW', 'Serie 6', '', 1976, 1989, 40000, 'coupe', 'La E24 è considerata una delle BMW più belle di sempre.'),
   R('BMW', 'Serie 8', '', 1989, 1999, 60000, 'coupe', 'La E31 era disponibile anche con un V12.'),
@@ -53,10 +53,8 @@ const RARE = [
   R('Mercedes-Benz', 'SLK', '', 1996, 2004, 10000, 'cabrio', 'Il tetto rigido Vario-roof si ripiega nel bagagliaio.'),
   R('Mercedes-Benz', '190', '2.3-16', 1984, 1988, 15000, 'berlina', 'La "Baby Benz": la prima Mercedes compatta.'),
   R('Mercedes-Benz', 'Classe SL', '', 1989, 2001, 30000, 'cabrio', 'La R129 ha il roll-bar che si alza da solo in caso di ribaltamento.'),
-  R('Mercedes-Benz', 'Classe C', '63 amg', 2007, 2014, 30000, 'berlina', 'Le C AMG: un V8 dentro una berlina media.'),
-  R('Mercedes-Benz', 'Classe G', '', 1979, 2015, 80000, 'suv', 'Nata come mezzo militare, prodotta a Graz dal 1979.'),
+  R('Mercedes-Benz', 'Classe C', 'amg', 2007, 2014, 30000, 'berlina', 'Le C AMG: un V8 dentro una berlina media.'),
   R('Audi', 'TT', '', 1998, 2006, 12000, 'coupe', 'La prima TT (8N) deriva dalla piattaforma della Golf IV.'),
-  R('Audi', '80', 'quattro', 1986, 1996, 15000, 'berlina', 'La B3/B4 quattro: un carro armato tedesco a trazione integrale.'),
   R('Audi', 'S3', '', 1999, 2012, 15000, 'berlina', 'La prima S3 aveva il 1.8 turbo e la trazione quattro.'),
   R('Audi', 'RS4', '', 2000, 2015, 40000, 'sw', 'Station wagon da famiglia con oltre 380 CV.'),
   R('Volkswagen', 'Golf', 'r32', 2002, 2009, 25000, 'berlina', 'La R32 ha il VR6 3.2 e la trazione integrale.'),
@@ -64,7 +62,6 @@ const RARE = [
   R('Volkswagen', 'Scirocco', '', 1974, 2017, 18000, 'coupe', 'Il nome viene da un vento che soffia sul Mediterraneo.'),
   R('Volkswagen', 'Corrado', '', 1988, 1995, 25000, 'coupe', 'La VR6 aveva uno spoiler che si alzava da solo in velocità.'),
   R('Volkswagen', 'Lupo', 'gti', 2000, 2005, 10000, 'citycar', 'La Lupo GTI pesa poco più di 1.000 kg.'),
-  R('Volkswagen', 'Maggiolino', '', 1950, 1985, 15000, 'citycar', 'Il Maggiolino: oltre 21 milioni di esemplari prodotti.'),
   R('Porsche', 'Boxster', '', 1996, 2004, 22000, 'cabrio', 'La 986 ha rilanciato la Porsche negli anni 90.'),
   R('Porsche', '944', '', 1982, 1991, 30000, 'coupe', 'Transaxle e quattro cilindri: la Porsche "accessibile" degli anni 80.'),
   R('Porsche', '924', '', 1976, 1988, 15000, 'coupe', 'Nata da un progetto pensato per Volkswagen.'),
@@ -87,27 +84,22 @@ const RARE = [
   R('Renault', 'R 5', 'turbo', 1980, 1996, 40000, 'citycar', 'Da utilitaria a icona sportiva degli anni 80.'),
   R('Alpine', 'A110', '', 2017, 2024, 60000, 'coupe', 'Erede della Berlinette che vinse il Mondiale Rally nel 1973.'),
   R('Citroen', 'Saxo', 'vts', 1996, 2003, 8000, 'citycar', 'Leggerissima: la VTS pesa meno di una tonnellata.'),
-  R('Citroen', '2CV', '', 1949, 1990, 15000, 'citycar', 'Progettata per attraversare un campo arato con un cesto di uova.'),
   R('Citroen', 'C2', 'vts', 2004, 2009, 6000, 'citycar', 'Piccola, leggera e con il 1.6 16V.'),
   // ---- Regno Unito
   R('Jaguar', 'XK', '', 1996, 2014, 30000, 'coupe', 'Inglese, lunga e bassa: da viaggio notturno.'),
-  R('Jaguar', 'XJ', '', 1986, 2009, 20000, 'berlina', 'La berlina inglese per eccellenza.'),
-  R('Land Rover', 'Defender', '', 1983, 2016, 45000, 'suv', 'Erede diretto della Land Rover Series del 1948.'),
-  R('Land Rover', 'Range Rover', '', 1970, 2002, 30000, 'suv', 'Il primo Range Rover è stato esposto al Louvre come opera di design.'),
   R('MINI', 'Cooper S', '', 2002, 2006, 8000, 'citycar', 'La R53 ha il compressore volumetrico: fischia che è una meraviglia.'),
   R('Lotus', 'Elise', '', 1996, 2011, 35000, 'cabrio', 'Telaio in alluminio incollato: pesa circa 700-800 kg.'),
   R('MG', 'MGF', '', 1995, 2002, 6000, 'cabrio', 'Motore centrale a un prezzo da utilitaria.'),
   // ---- Svezia
   R('Saab', '9-3', 'viggen', 1999, 2002, 30000, 'berlina', 'Prende il nome dal caccia Saab 37 Viggen.'),
-  R('Saab', '9-3', 'aero', 2003, 2011, 15000, 'berlina', 'L\'Aero top di gamma ha il 2.8 V6 turbo da 250-280 CV.'),
+  R('Saab', '9-3', 'aero', 2003, 2011, 15000, 'berlina', 'La 9-3 Aero a benzina: quattro cilindri turbo oppure V6 2.8.'),
   R('Saab', '900', '', 1979, 1998, 25000, 'berlina', 'La chiave si gira tra i sedili, vicino alla leva del cambio.'),
-  R('Saab', '9-5', 'aero', 1999, 2010, 10000, 'sw', 'Il 2.3 turbo dell\'Aero supera i 250 CV.'),
+  R('Saab', '9-5', 'aero', 1999, 2010, 10000, 'sw', 'Il 2.3 turbo Aero è il cuore della prima generazione 9-5 sportiva.'),
   R('Volvo', '850', 't5', 1992, 1997, 12000, 'sw', 'Nel 1994 ha corso nel campionato turismo inglese anche station wagon.'),
-  R('Volvo', '240', '', 1975, 1993, 12000, 'sw', 'Il "mattone" svedese: prodotto per quasi 20 anni.'),
   R('Volvo', 'V70', 'r', 1997, 2007, 12000, 'sw', 'Le V70 R: turbo e trazione integrale in versione familiare.'),
   R('Volvo', 'C70', '', 1997, 2005, 8000, 'coupe', 'Coupé e cabrio a cinque cilindri turbo.'),
   // ---- Giappone
-  R('Honda', 'S2000', '', 1999, 2009, 40000, 'cabrio', 'Il quattro cilindri F20C gira fino a 9.000 giri.'),
+  R('Honda', 'S2000', '', 1999, 2009, 40000, 'cabrio', 'Il 2.0 F20C è celebre per il regime di rotazione elevatissimo.'),
   R('Honda', 'Civic', 'type r', 1997, 2015, 25000, 'berlina', 'Le Type R: VTEC, pochi fronzoli e tanto pistone.'),
   R('Honda', 'Prelude', '', 1990, 2001, 15000, 'coupe', 'Una delle prime auto di serie con le quattro ruote sterzanti.'),
   R('Honda', 'CRX', '', 1983, 1991, 15000, 'coupe', 'Leggera e bassa: sulle ultime c\'era già il VTEC.'),
@@ -115,8 +107,7 @@ const RARE = [
   R('Toyota', 'MR 2', '', 1984, 2007, 18000, 'coupe', 'Motore centrale e trazione posteriore, a prezzi da utilitaria.'),
   R('Toyota', 'Celica', '', 1990, 2006, 12000, 'coupe', 'Le Celica GT-Four hanno corso e vinto nel WRC.'),
   R('Toyota', 'GT86', '', 2012, 2021, 25000, 'coupe', 'Il boxer è di origine Subaru: è gemella della BRZ.'),
-  R('Toyota', 'Supra', '', 1986, 2002, 60000, 'coupe', 'La Supra Mk4 ha il leggendario sei cilindri 2JZ.'),
-  R('Toyota', 'Land Cruiser', '', 1985, 2009, 30000, 'suv', 'Usato in tutto il mondo dove le strade finiscono.'),
+  R('Toyota', 'Supra', '', 1986, 2002, 60000, 'coupe', 'Dalla A70 con il sei cilindri 7M alla A80 con il celebre 2JZ.'),
   R('Mazda', 'MX-5', '', 1990, 2005, 15000, 'cabrio', 'Secondo il Guinness è la spider a due posti più venduta della storia.'),
   R('Mazda', 'MX-5', '', 2005, 2015, 15000, 'cabrio', 'La terza serie (NC) esiste anche con il tetto rigido ripiegabile.'),
   R('Mazda', 'RX-8', '', 2003, 2012, 15000, 'coupe', 'Motore rotativo Renesis e porte posteriori controvento.'),
@@ -124,15 +115,11 @@ const RARE = [
   R('Nissan', '350Z', '', 2003, 2009, 20000, 'coupe', 'V6 VQ35 aspirato e trazione posteriore.'),
   R('Nissan', '200 SX', '', 1988, 2002, 25000, 'coupe', 'La Silvia europea: regina del drift.'),
   R('Nissan', '300 ZX', '', 1989, 1996, 25000, 'coupe', 'La Z32 biturbo era una delle giapponesi più avanzate del suo tempo.'),
-  R('Nissan', 'Patrol', '', 1980, 2010, 25000, 'suv', 'Fuoristrada indistruttibile, amato nei raid africani.'),
   R('Subaru', 'Impreza', 'wrx', 1993, 2010, 25000, 'berlina', 'Motore boxer e trazione integrale, il rally nel DNA.'),
   R('Subaru', 'BRZ', '', 2012, 2020, 25000, 'coupe', 'Gemella della Toyota GT86, boxer aspirato.'),
   R('Subaru', 'Legacy', 'gt', 1998, 2009, 10000, 'sw', 'Boxer turbo e trazione integrale in versione familiare.'),
   R('Mitsubishi', 'Lancer', 'evo', 1996, 2016, 50000, 'berlina', 'La Evo ha vinto quattro titoli piloti WRC con Tommi Mäkinen.'),
-  R('Mitsubishi', '3000 GT', '', 1990, 2000, 25000, 'coupe', 'Biturbo, trazione integrale e quattro ruote sterzanti.'),
-  R('Mitsubishi', 'Pajero', '', 1982, 2006, 15000, 'suv', 'È l\'auto con più vittorie nella storia della Dakar.'),
-  R('Suzuki', 'Jimny', '', 1998, 2018, 12000, 'suv', 'Piccolo, leggero e capace di andare dove i SUV si piantano.'),
-  R('Suzuki', 'Samurai', '', 1981, 2004, 8000, 'suv', 'L\'antenato del Jimny: piccolo fuoristrada con telaio.'),
+  R('Mitsubishi', '3000 GT', '', 1990, 2000, 25000, 'coupe', 'La versione VR-4 abbina due turbo, trazione integrale e quattro ruote sterzanti.'),
   R('Suzuki', 'Swift', 'sport', 2005, 2017, 9000, 'citycar', 'Leggera e frizzante: la tascabile da curve.'),
   R('Lexus', 'IS 200', '', 1999, 2005, 8000, 'berlina', 'Sei cilindri in linea e trazione posteriore, affidabilità Toyota.'),
   // ---- Stati Uniti
@@ -144,8 +131,6 @@ const RARE = [
   R('Ford', 'Capri', '', 1969, 1986, 25000, 'coupe', 'La "Mustang europea".'),
   R('Chevrolet', 'Corvette', '', 1984, 2013, 45000, 'coupe', 'La sportiva americana per eccellenza, dal 1953.'),
   R('Chevrolet', 'Camaro', '', 1982, 2015, 30000, 'coupe', 'L\'eterna rivale della Mustang.'),
-  R('Jeep', 'Wrangler', '', 1987, 2018, 25000, 'suv', 'Erede diretta della Willys della seconda guerra mondiale.'),
-  R('Jeep', 'Cherokee', '', 1984, 2001, 8000, 'suv', 'La XJ: monoscocca e 4x4, un classico dei fuoristrada.'),
   // ---- Spagna e Repubblica Ceca
   R('SEAT', 'Leon', 'cupra', 2000, 2016, 12000, 'berlina', 'Hot hatch spagnola con meccanica Volkswagen.'),
   R('SEAT', 'Ibiza', 'cupra', 2004, 2015, 8000, 'citycar', 'Piccola e veloce, con i motori del gruppo Volkswagen.'),
@@ -154,7 +139,6 @@ const RARE = [
   // Altre sportive e curiosità da riscoprire
   R('Alfa Romeo', 'MiTo', 'quadrifoglio', 2009, 2018, 14000, 'citycar', 'La piccola Alfa con il 1.4 turbo nella versione Quadrifoglio Verde.'),
   R('Alfa Romeo', 'Giulietta', 'quadrifoglio', 2010, 2020, 20000, 'berlina', 'La Quadrifoglio Verde porta il 1750 turbo nella compatta Alfa.'),
-  R('Alfa Romeo', 'GTV', '3.0', 1995, 2005, 25000, 'coupe', 'Il V6 Busso incontra la carrozzeria a cuneo della 916.'),
   R('Lancia', 'Beta', 'montecarlo', 1975, 1981, 35000, 'coupe', 'Motore centrale e dimensioni compatte: una Lancia da riscoprire.'),
   R('Lancia', 'Delta', 'hf turbo', 1983, 1993, 22000, 'berlina', 'La Delta HF Turbo a trazione anteriore, prima della fama della Integrale.'),
   R('Fiat', 'Stilo', 'abarth', 2001, 2007, 10000, 'berlina', 'Cinque cilindri aspirato 2.4 in una compatta poco ricordata.'),
@@ -168,9 +152,9 @@ const RARE = [
   R('BMW', 'Serie 1', '135i', 2007, 2013, 25000, 'coupe', 'Sei cilindri turbo e trazione posteriore nella carrozzeria E82.'),
   R('BMW', 'M5', '', 1998, 2003, 45000, 'berlina', 'La E39 porta il V8 aspirato nella berlina M.'),
   R('BMW', 'Serie 3', '328i', 1995, 1999, 18000, 'berlina', 'La E36 con sei cilindri 2.8 è una classica base da appassionati.'),
-  R('Mercedes-Benz', 'SLK', '32 amg', 2001, 2004, 25000, 'cabrio', 'V6 con compressore volumetrico nella piccola roadster R170.'),
-  R('Mercedes-Benz', 'Classe CLK', '55 amg', 1999, 2006, 30000, 'coupe', 'Una coupé discreta con un grande V8 aspirato.'),
-  R('Mercedes-Benz', 'Classe E', '500', 1991, 1995, 65000, 'berlina', 'La 500 E W124 veniva assemblata con la collaborazione di Porsche.'),
+  R('Mercedes-Benz', 'SLK', 'amg', 2001, 2004, 25000, 'cabrio', 'V6 con compressore volumetrico nella piccola roadster R170.'),
+  R('Mercedes-Benz', 'Classe CLK', 'amg', 1999, 2006, 30000, 'coupe', 'Una coupé discreta con un grande V8 aspirato.'),
+  R('Mercedes-Benz', 'Classe E', '', 1991, 1995, 65000, 'berlina', 'La 500 E W124 veniva assemblata con la collaborazione di Porsche.'),
   R('Audi', 'S2', '', 1990, 1996, 45000, 'coupe', 'Cinque cilindri turbo e quattro: erede della tradizione rally Audi.'),
   R('Audi', 'TT', '3.2', 2003, 2010, 22000, 'coupe', 'Il VR6 aggiunge sei cilindri alla forma inconfondibile della TT.'),
   R('Audi', 'RS6', '', 2002, 2004, 30000, 'sw', 'La prima RS6 unisce V8 biturbo e carrozzeria familiare.'),
@@ -227,7 +211,42 @@ const RARE = [
   R('Chrysler', 'Crossfire', '', 2003, 2008, 18000, 'coupe', 'Forme americane e meccanica derivata dalla Mercedes SLK.'),
   R('Dodge', 'Challenger', '', 2008, 2023, 45000, 'coupe', 'La muscle car moderna dalle proporzioni fedeli agli anni Settanta.'),
   R('SEAT', 'Ibiza', 'bocanegra', 2009, 2012, 12000, 'citycar', 'Il frontale nero distingue la piccola sportiva Bocanegra.'),
+  R('Peugeot', '106', 'rallye', 1993, 2003, 16000, 'citycar', 'La Rallye punta su peso contenuto e meccanica essenziale.'),
+  R('Peugeot', '106', 's16', 1996, 2003, 14000, 'citycar', 'S16 è il nome usato su diversi mercati per la 106 sportiva 16 valvole.'),
+  R('Peugeot', '306', 's16', 1993, 2001, 14000, 'berlina', 'La versione 16 valvole della compatta Peugeot degli anni Novanta.'),
+  R('Subaru', 'Impreza', 'gt turbo', 1994, 2000, 35000, 'berlina', 'La turbo europea prima della diffusione del nome WRX.'),
+  R('Volkswagen', 'Golf', 'r', 2009, 2024, 40000, 'berlina', 'La R porta il turbo e la trazione integrale nella Golf.'),
+  R('Ford', 'Focus', 'st', 2005, 2024, 25000, 'berlina', 'La Focus sportiva da usare ogni giorno, distinta dalla più estrema RS.'),
+  R('Peugeot', '208', 'gti', 2013, 2019, 18000, 'citycar', 'La GTI riporta il nome storico Peugeot nella generazione 208 originale.'),
+  R('Peugeot', '308', 'gti', 2010, 2021, 24000, 'berlina', 'La compatta Peugeot nella versione GTI a benzina.'),
+  R('Renault', 'Laguna', 'coupe', 2008, 2015, 16000, 'coupe', 'Una gran turismo francese poco ricordata, anche con quattro ruote sterzanti.'),
+  R('Renault', 'Avantime', '', 2001, 2003, 25000, 'coupe', 'Due grandi porte e proporzioni fuori dagli schemi: una vera curiosità da riscoprire.'),
+  R('Toyota', 'Starlet', 'turbo', 1986, 1999, 22000, 'citycar', 'La piccola Toyota turbo giapponese, prima della Yaris GR.'),
+  R('Toyota', 'Paseo', '', 1991, 1999, 10000, 'coupe', 'Una piccola coupé Toyota spesso dimenticata.'),
+  R('Alfa Romeo', 'SZ', '', 1989, 1991, 100000, 'coupe', 'Forme spigolose e meccanica transaxle per una delle Alfa più particolari.'),
 ];
+
+// Requisiti verificabili sull'annuncio, oltre a modello e intervallo anni.
+// minCV scarta motorizzazioni ordinarie quando il sito dichiara la potenza.
+const RULES = [
+  ['Mercedes-Benz', 'Classe C', 'amg', 450, ['c63', 'c 63']],
+  ['Mercedes-Benz', 'SLK', 'amg', 340, ['slk32', 'slk 32']],
+  ['Mercedes-Benz', 'Classe CLK', 'amg', 340, ['clk55', 'clk 55']],
+  ['Mercedes-Benz', 'Classe E', '', 320, ['e500', 'e 500', '500e', '500 e']],
+  ['Volkswagen', 'Golf', 'r', 265], ['Hyundai', 'i30', 'n', 245], ['Peugeot', 'RCZ', 'r', 265],
+  ['Volvo', 'S60', 'r', 295], ['Volvo', 'V70', 'r', 235],
+  ['Citroen', 'Xsara', 'vts', 160], ['Citroen', 'C4', 'vts', 175],
+  ['Citroen', 'Saxo', 'vts', 115], ['Citroen', 'C2', 'vts', 120],
+  ['Subaru', 'Impreza', 'wrx', 200], ['Alfa Romeo', '33', '16v', 125],
+  ['Alfa Romeo', 'Giulietta', 'quadrifoglio', 230],
+  ['Toyota', 'Yaris', 'gr', 250], ['Toyota', 'Celica', 'ts', 185],
+  ['BMW', 'Serie 1', '130i', 255], ['BMW', 'Serie 3', '330i', 225],
+  ['BMW', 'Serie 3', '325i', 165], ['BMW', 'Serie 5', '540i', 280]
+];
+RARE.forEach((r) => {
+  const rule = RULES.find(([make, model, kw]) => r.make === make && r.model === model && r.kw === kw);
+  if (rule) { r.minCV = rule[3]; r.variants = rule[4] || []; }
+});
 
 // Offerte: modelli diffusi, con il loro tipo di carrozzeria (per il filtro "Tipo")
 const P = (make, model, b) => [make, model, b];

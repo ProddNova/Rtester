@@ -5,12 +5,12 @@ const fs = require('node:fs');
 
 function setup() {
   const source = fs.readFileSync(require.resolve('../public/js/app'), 'utf8');
-  const events = {}, indicator = {}, calls = [];
+  const events = {}, indicator = { classList: { toggle() {} }, style: { setProperty() {} }, appendChild() {} }, calls = [];
   let active = true, resolve;
   const context = {
     window: { scrollY: 0, addEventListener: (name, fn) => { events[name] = fn; } },
     document: { body: { appendChild() {} }, addEventListener: (name, fn) => { events[name] = fn; } },
-    h: () => indicator, $: () => ({ classList: { contains: () => active } }),
+    h: () => indicator, ic: () => ({ style: {} }), $: () => ({ insertBefore() {}, parentNode: { insertBefore() {} }, classList: { contains: () => active } }),
     feed: { loading: false },
     loadFeed: (mode) => { calls.push(mode); return new Promise((r) => { resolve = r; }); }
   };

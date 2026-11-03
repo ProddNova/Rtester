@@ -16,6 +16,7 @@ const KA = require('./sources/kleinanzeigen');
 const MP = require('./sources/marktplaats');
 
 const { RARE, POPULAR } = require('./feed-list');
+const { matchesEnthusiast } = require('./enthusiast');
 
 // Divide la lista (già mescolata) in pagine da n modelli, senza ripetere la marca nella stessa pagina.
 function pages(list, n) {
@@ -133,7 +134,7 @@ const BODIES = ['citycar', 'berlina', 'sw', 'coupe', 'cabrio', 'suv'];
 
 async function feed(page, opts) {
   opts = opts || {};
-  page = Math.max(0, Math.min(200, parseInt(page, 10) || 0));
+  page = Math.max(0, Math.min(1000, parseInt(page, 10) || 0));
   const seed = n(opts.seed) || Math.floor(Date.now() / 3600000);
   const body = BODIES.includes(opts.body) ? opts.body : '';
   const o = { pmax: n(opts.pmax), kmmax: n(opts.kmmax), bans: opts.bans || [], body };
@@ -195,29 +196,28 @@ async function feed(page, opts) {
   // giri successivi della lista: stessi modelli, annunci diversi
   const cycle = Math.floor(page / rarePages.length);
   rarePages[page % rarePages.length].forEach((r) => {
-    const pmax = o.pmax ? Math.min(o.pmax, r.p) : r.p;
-    const s = { make: r.make, model: r.model, kw: r.kw || '', ymin: String(r.y[0]), ymax: String(r.y[1]), pmax: String(pmax), kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'rilevanza' };
+    const pmax = o.pmax;
+    const s = { make: r.make, model: r.model, kw: r.kw || '', ymin: String(r.y[0]), ymax: String(r.y[1]), pmax: pmax ? String(pmax) : '', kmmax: o.kmmax ? String(o.kmmax) : '', sort: 'rilevanza' };
     const tag = { reason: 'rara', label: 'Da appassionati', fact: r.f, _g: r.make };
     // deve essere davvero quel modello, quella versione e in quegli anni (alcuni siti aggiungono auto "simili")
     const right = (it) => {
-      const t = MATCH.text(it) + MATCH.words(String(it.snippet || '').slice(0, 120));
-      return MATCH.modelHit(t, r.model) && MATCH.kwHit(t, r.kw) && within(it, o) &&
-        it.price <= pmax && (!it.year || (it.year >= r.y[0] && it.year <= r.y[1]));
+      return matchesEnthusiast(it, r) && within(it, o) && (!pmax || it.price <= pmax);
     };
-    const sources = [() => fromAS(Object.assign({ europe: abroad }, s), 1 + cycle % 2), () => fromSubito(s)];
-    if (abroad) sources.push(rand() < 0.6 ? () => fromKA(s) : () => fromMP(s));
+    const sources = [() => fromAS(Object.assign({ europe: abroad }, s), 1 + cycle % 5), () => fromSubito(s, 1 + cycle % 5)];
+    if (abroad) sources.push(rand() < 0.6 ? () => fromKA(s, 1 + cycle % 5) : () => fromMP(s, 1 + cycle % 5));
     const order = shuffle(sources, rand);
     const r1 = rand();
     jobs.push((async () => {
       for (const get of order) {
         const found = (await get()).filter(right);
-        if (found.length) return [Object.assign(found[Math.floor(r1 * Math.min(found.length, 10))], tag)];
+        if (found.length) return [Object.assign(found[Math.floor(r1 * found.length)], tag)];
       }
       return [];
     })());
   });
   const all = [].concat(...(await Promise.all(jobs)));
-  return done(spread(DEDUP.mergeListings([], all), rand), page < rarePages.length * 3);
+  return done(spread(DEDUP.mergeListings([], all), rand), page < 1000);
 }
 
 module.exports = { feed, RARE, POPULAR, spread, rng, pages };
+
